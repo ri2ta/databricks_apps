@@ -1,0 +1,16 @@
+{
+  "id": "snapshot_1766897524838_00oymeeac",
+  "approvalId": "approval_1766897524830_ck8q3advu",
+  "approvalTitle": "Steering Product Document",
+  "version": 1,
+  "timestamp": "2025-12-28T04:52:04.837Z",
+  "trigger": "initial",
+  "status": "pending",
+  "content": "# Product Overview\n\n## Product Purpose\nDatabricks Apps 上で、YAML によるエンティティ定義だけで CRUD UI を自動生成する「モデル駆動アプリ」基盤を提供し、業務 CRUD 開発の手間を最小化する。\n\n## Target Users\n- データ／分析チームの内製業務アプリ開発者（Python/SQL が主）\n- ビジネス部門の市民開発者（簡易な設定変更で UI を作りたい）\n- 運用担当（ログ・監査が見える形で安全に運用したい）\n\n## Key Features\n1. **YAML 主導のエンティティ定義**: `config/entities.yaml` を書くだけで一覧・フォームを生成。\n2. **htmx ベースのサーバー駆動 UI**: 部分更新で高速な UX を提供。\n3. **汎用データグリッド／フォーム部品**: Tailwind + DaisyUI で統一されたコンポーネントを再利用。\n4. **カスタムアクション差し込み**: YAML で宣言したエンドポイントを Flask 側に実装し、拡張性を確保。\n5. **Databricks ネイティブ統合**: データ基盤・バッチ・モデル提供との連携を前提に設計。\n\n## Business Objectives\n- CRUD アプリの初期提供リードタイムを大幅短縮（テンプレ化）。\n- UI/UX の統一により保守コストを削減、重複実装を防止。\n- Databricks 環境での運用・監査要件（ログ／権限／Secret 管理）を満たす。\n- 業務ロジック実装に開発リソースを集中させ、設定で UI を作る文化を醸成。\n\n## Success Metrics\n- 新エンティティ追加から CRUD 画面提供までのリードタイム: 1 日以内。\n- フレームワーク上で提供されるエンティティ数: 月次で増加。\n- UI 層の改修頻度（重複実装の減少）: 従来比で 50% 減。\n- 主要画面の P50/P95 レイテンシ: htmx リクエストで P95 < 500ms（Apps 内計測）。\n\n## Product Principles\n1. **Declarative-first**: UI は可能な限り YAML 定義で完結させ、ロジックは Flask へ分離。\n2. **Server-driven UI**: htmx による部分 HTML 配信を基本とし、フロント状態は最小化。\n3. **Extensible hooks**: カスタムアクション／フィールド型を追加しやすい設計を維持。\n4. **Secure-by-default**: Secrets/権限を外出しし、入力バリデーションと監査ログを標準化。\n5. **Observable**: ログ・メトリクスをデフォルトで出力し、Apps 内で可視化可能に。\n\n## Monitoring & Visibility (if applicable)\n- **Dashboard Type**: Web UI（Apps 内 HTMX ページ）\n- **Real-time Updates**: htmx 部分更新（必要に応じてポーリング）\n- **Key Metrics Displayed**: CRUD レイテンシ、エラーレート、エンティティ別利用件数\n- **Sharing Capabilities**: ワークスペース内共有（将来は read-only リンク/エクスポートを検討）\n\n## Future Vision\nYAML 定義でスキーマだけでなく、ワークフロー・権限モデル・通知まで declarative に拡張し、Apps 上で完結するモデル駆動業務アプリ基盤へ進化させる。\n\n### Potential Enhancements\n- **Remote Access**: 外部ステークホルダー向けの安全な閲覧リンク配布（トンネル／リバースプロキシ前提）。\n- **Analytics**: 利用状況ダッシュボード、履歴トレンド、パフォーマンス分析の自動化。\n- **Collaboration**: コメント、承認フロー、マルチユーザー編集を段階的に追加。\n",
+  "fileStats": {
+    "size": 3517,
+    "lines": 50,
+    "lastModified": "2025-12-28T04:51:56.912Z"
+  },
+  "comments": []
+}
