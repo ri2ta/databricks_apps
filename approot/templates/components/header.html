@@ -1,0 +1,23 @@
+<header class="navbar bg-base-200 shadow px-4">
+
+  <!-- Sidebar toggle -->
+  <button class="btn btn-ghost btn-sm mr-2" @click="open = !open">
+    ☰
+  </button>
+
+  <div class="flex-1 text-xl font-bold">
+    {{ system_name or "My System" }}
+  </div>
+
+  <div class="flex-none">
+    <button class="btn btn-sm btn-primary">Global Action</button>
+
+    <div class="dropdown dropdown-end ml-2">
+      <label tabindex="0" class="btn btn-sm">User</label>
+      <ul tabindex="0" class="dropdown-content menu p-2 shadow bg-base-100 rounded-box w-52">
+        <li><a>Profile</a></li>
+        <li><a>Logout</a></li>
+      </ul>
+    </div>
+  </div>
+</header>

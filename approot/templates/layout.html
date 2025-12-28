@@ -1,0 +1,26 @@
+{% extends "base.html" %}
+
+{% block content %}
+
+<div x-data="{ open: true }" class="flex flex-col h-screen">
+
+  {% include "components/header.html" %}
+
+  <div class="flex flex-1 overflow-hidden">
+
+    <!-- Sidebar -->
+    <aside
+      class="bg-base-100 border-r overflow-y-auto transition-all duration-300"
+      :class="open ? 'w-64' : 'w-0 border-none'">
+      {% include "components/nav.html" %}
+    </aside>
+
+    <!-- Main Pane (cache history snapshots so back/forward restores content without re-requesting) -->
+    <main id="main-pane" class="flex-1 p-4 overflow-y-auto" hx-history-elt>
+      <div class="text-gray-500">メニューを選択してください</div>
+    </main>
+
+  </div>
+</div>
+
+{% endblock %}
