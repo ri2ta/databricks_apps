@@ -1,0 +1,14 @@
+{
+  "filePath": ".spec-workflow/specs/model-driven-crud-framework/design.md",
+  "currentVersion": 1,
+  "snapshots": [
+    {
+      "version": 1,
+      "filename": "snapshot-001.json",
+      "timestamp": "2025-12-28T05:15:35.223Z",
+      "trigger": "initial",
+      "approvalId": "approval_1766898935218_wouw4dg4y",
+      "approvalTitle": "model-driven-crud-framework design (JP)"
+    }
+  ]
+}
