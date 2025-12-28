@@ -49,9 +49,14 @@ def load_entities(yaml_path: str) -> ValidationResult:
             errors=[f"Error reading file: {str(e)}"]
         )
     
-    # Handle empty file
+    # Handle empty file or non-mapping root
     if raw_data is None:
         return ValidationResult(success=True, entities={})
+    if not isinstance(raw_data, dict):
+        return ValidationResult(
+            success=False,
+            errors=["Root of YAML must be a mapping of entity names to configs"]
+        )
     
     # Validate and normalize each entity
     entities = {}
