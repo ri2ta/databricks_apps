@@ -2,3 +2,5 @@ flask
 databricks-sql-connector[pyarrow]
 python-dotenv
 requests
+pyyaml
+pytest

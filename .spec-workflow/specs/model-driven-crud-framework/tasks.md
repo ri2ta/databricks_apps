@@ -1,6 +1,6 @@
 # Tasks Document
 
-- [ ] 1. エンティティローダーとスキーマ検証を TDD で実装する
+- [x] 1. エンティティローダーとスキーマ検証を TDD で実装する
   - File: approot/services/entities_loader.py
   - 内容: 先に pytest を書き、config/entities.yaml を読み込みつつエンティティ定義を検証・正規化する関数を実装。必須フィールド欠落・型不整合を検出しエラーメッセージを返す。
   - _Leverage: config/entities.yaml, design.md の EntityConfig 定義, yaml ライブラリ_

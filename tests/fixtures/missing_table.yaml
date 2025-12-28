@@ -1,0 +1,10 @@
+customer:
+  label: Customer
+  list:
+    columns:
+      - { name: name, label: Name, width: 200 }
+  form:
+    sections:
+      - label: Info
+        fields:
+          - { name: name, label: Name, type: text }

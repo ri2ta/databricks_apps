@@ -1,0 +1,11 @@
+customer:
+  table: customers
+  label: Customer
+  list:
+    columns: "not a list"
+    page_size: 20
+  form:
+    sections:
+      - label: Info
+        fields:
+          - { name: name, label: Name, type: text }
