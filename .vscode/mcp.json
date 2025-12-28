@@ -1,0 +1,25 @@
+{
+	"servers": {
+		"serena": {
+			"command": "uvx",
+			"args": [
+				"--from",
+				"git+https://github.com/oraios/serena",
+				"serena",
+				"start-mcp-server",
+				"--context",
+				"ide-assistant"
+			],
+			"type": "stdio"
+		},
+		"spec-workflow": {
+			"command": "npx",
+			"args": [
+				"-y",
+				"@pimzino/spec-workflow-mcp@latest",
+				"/workspaces/databricks_apps"
+			]
+		}
+	},
+	"inputs": []
+}
