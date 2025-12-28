@@ -1,0 +1,35 @@
+customer:
+  table: customers
+  label: Customer
+  primary_key: id
+  list:
+    columns:
+      - { name: name, label: Name, width: 200 }
+      - { name: email, label: Email, width: 300 }
+    default_sort: name
+    page_size: 20
+    actions:
+      - { name: export, label: Export, endpoint: /customer/export }
+  form:
+    sections:
+      - label: Basic Info
+        fields:
+          - { name: name, label: Name, type: text }
+          - { name: email, label: Email, type: email }
+    actions:
+      - { name: save, label: Save, endpoint: /customer/save }
+
+product:
+  table: products
+  label: Product
+  list:
+    columns:
+      - { name: name, label: Product Name, width: 250 }
+      - { name: price, label: Price, width: 100 }
+    page_size: 10
+  form:
+    sections:
+      - label: Details
+        fields:
+          - { name: name, label: Name, type: text }
+          - { name: price, label: Price, type: text }
