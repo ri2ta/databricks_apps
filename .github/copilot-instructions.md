@@ -45,7 +45,7 @@
 ### 典型的なプロンプト例
 - 仕様開始: 「spec-workflow の Requirements を開始。対象機能は◯◯。制約は…」
 - 実装タスク分解: 「この仕様を Tasks に落とし込み、タスク ID を付けて」
-- コード変更: 「[approot/app.py](approot/app.py) にエンドポイント追加。HTMX で◯◯を返す部分テンプレートを [approot/templates/partials/detail.html](approot/templates/partials/detail.html) に」
+- コード変更: 「[approot/app.py](/workspaces/databricks_apps/approot/app.py) にエンドポイント追加。HTMX で◯◯を返す部分テンプレートを [approot/templates/partials](/workspaces/databricks_apps/approot/templates/partials) に」
 - テスト要求: 「エンドポイント `/items/<id>` の pytest を追加。成功/404/validation を網羅」
 - ログ記録: 「log-implementation で taskId=… のアーティファクトをまとめて」
 
@@ -74,5 +74,5 @@
 - Lint/型: ruff/flake8 + mypy を推奨。
 
 ## 変更時の出力フォーマット
-- 行リンク付きで参照 (例: [approot/app.py](approot/app.py#L10-L30))。
+- 行リンク付きで参照 (例: [approot/app.py](/workspaces/databricks_apps/approot/app.py#L10-L30))。
 - 要約は簡潔に、影響範囲と次アクションを提示。不要な長文は避ける。
