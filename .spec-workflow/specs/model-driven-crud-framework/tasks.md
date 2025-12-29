@@ -14,7 +14,7 @@
   - _Requirements: 要件1, 要件2, 要件4, 非機能(パフォーマンス)_
   - _Prompt: Implement the task for spec model-driven-crud-framework, first run spec-workflow-guide to get the workflow guide then implement the task: Role: Python data access developer | Task: TDD で list/detail/lookup のテストを先に書き、ページング/ソート/lookup を実装 | Restrictions: パラメータバインド必須、db.py を必ず経由、テスト先行 | _Leverage: db.py, design.md | _Requirements: 要件1, 要件2, 要件4 | Success: 失敗するテスト→実装→緑で、クエリパラメータに基づき正しい結果を返す_
 
-- [ ] 3. 汎用サービスを TDD で実装する（render_list/detail/form + actions）
+- [x] 3. 汎用サービスを TDD で実装する（render_list/detail/form + actions）
   - File: approot/services/generic_service.py
   - 内容: 先にサービス層のテスト（list/detail/form のコンテキスト形状、未定義エンティティ/レコード時の応答、actions ディスパッチ）を書き、その後実装。mode="view/create/edit" で単一テンプレートを使う前提。
   - _Leverage: entities_loader.py, generic_repo.py, design.md Generic Service 節_
