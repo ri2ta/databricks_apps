@@ -1,4 +1,7 @@
-<dialog id="lookup-modal" class="modal">
+{% set modal_id = 'lookup-modal-' ~ field_name %}
+{% set results_id = 'lookup-results-' ~ field_name %}
+
+<dialog id="{{ modal_id }}" class="modal">
   <div class="modal-box">
     <h3 class="font-bold text-lg mb-4">Select {{ lookup_name|title }}</h3>
     
@@ -8,17 +11,17 @@
              class="input input-bordered w-full"
              hx-get="/lookup/{{ lookup_name }}"
              hx-trigger="keyup changed delay:300ms"
-             hx-target="#lookup-results"
+             hx-target="#{{ results_id }}"
              name="q">
     </div>
     
-    <div id="lookup-results" class="overflow-y-auto max-h-96">
+    <div id="{{ results_id }}" class="overflow-y-auto max-h-96">
       {% if results %}
       <table class="table table-sm w-full">
         <tbody>
           {% for item in results %}
           <tr class="hover cursor-pointer"
-              onclick="selectLookupValue('{{ field_name }}', '{{ item.id }}', '{{ item.name }}'); document.getElementById('lookup-modal').close()">
+              onclick="selectLookupValue_{{ field_name }}('{{ item.id }}', '{{ item.name }}')">
             <td>{{ item.name }}</td>
           </tr>
           {% endfor %}
@@ -30,7 +33,7 @@
     </div>
     
     <div class="modal-action">
-      <button type="button" class="btn" onclick="document.getElementById('lookup-modal').close()">Close</button>
+      <button type="button" class="btn" onclick="document.getElementById('{{ modal_id }}').close()">Close</button>
     </div>
   </div>
   <form method="dialog" class="modal-backdrop">
@@ -39,8 +42,14 @@
 </dialog>
 
 <script>
-function selectLookupValue(fieldName, id, displayValue) {
-  document.getElementById(fieldName).value = id;
-  document.getElementById(fieldName + '_display').value = displayValue;
+function selectLookupValue_{{ field_name }}(id, displayValue) {
+  const fieldName = '{{ field_name }}';
+  const modalId = '{{ modal_id }}';
+  const hidden = document.getElementById(fieldName);
+  const display = document.getElementById(fieldName + '_display');
+  if (hidden) hidden.value = id;
+  if (display) display.value = displayValue;
+  const modal = document.getElementById(modalId);
+  if (modal) modal.close();
 }
 </script>

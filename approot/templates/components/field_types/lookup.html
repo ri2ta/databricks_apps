@@ -1,3 +1,5 @@
+{% set modal_id = 'lookup-modal-' ~ field.name %}
+
 <div class="form-control mb-2">
   <label class="label">
     <span class="label-text">{{ field.label }}</span>
@@ -19,8 +21,8 @@
     <button type="button" 
             class="btn btn-outline join-item"
             hx-get="/lookup/{{ field.lookup }}?field={{ field.name }}"
-            hx-target="#lookup-modal-content"
-            onclick="document.getElementById('lookup-modal').showModal()">
+            hx-target="#lookup-results-{{ field.name }}"
+            onclick="document.getElementById('{{ modal_id }}').showModal()">
       Select
     </button>
   </div>
