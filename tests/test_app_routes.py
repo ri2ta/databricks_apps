@@ -120,6 +120,29 @@ def mock_generic_repo(monkeypatch):
 
 
 @pytest.fixture
+def status_entity(monkeypatch):
+    """Provide a status entity in _ENTITIES and restore after use."""
+    from copy import deepcopy
+    from app import _ENTITIES
+
+    original = deepcopy(_ENTITIES)
+    _ENTITIES['status'] = {
+        'name': 'status',
+        'table': 'statuses',
+        'label': 'Status',
+        'primary_key': 'id',
+        'list': {'columns': [{'name': 'id'}, {'name': 'name'}]},
+        'form': {'sections': []},
+    }
+
+    try:
+        yield _ENTITIES['status']
+    finally:
+        _ENTITIES.clear()
+        _ENTITIES.update(original)
+
+
+@pytest.fixture
 def client(mock_db, mock_entities_loader, mock_generic_repo):
     """Create Flask test client with mocked dependencies."""
     import sys
@@ -258,7 +281,7 @@ def test_entity_action_route_unknown_action(client):
 
 
 # Task 5: Test /lookup/<lookup_name> endpoint
-def test_lookup_route(client, monkeypatch):
+def test_lookup_route(client, monkeypatch, status_entity):
     """Task 5: GET /lookup/<lookup_name> returns lookup results"""
     import sys
     from pathlib import Path
@@ -278,24 +301,13 @@ def test_lookup_route(client, monkeypatch):
     
     monkeypatch.setattr(generic_repo, 'search_lookup', mock_search_lookup)
     
-    # Add a 'status' entity to mock entities
-    from app import _ENTITIES
-    _ENTITIES['status'] = {
-        'name': 'status',
-        'table': 'statuses',
-        'label': 'Status',
-        'primary_key': 'id',
-        'list': {'columns': [{'name': 'id'}, {'name': 'name'}]},
-        'form': {'sections': []},
-    }
-    
     response = client.get('/lookup/status')
     assert response.status_code == 200
     # Should contain lookup results
     assert b'Active' in response.data or b'Inactive' in response.data
 
 
-def test_lookup_route_with_query(client, monkeypatch):
+def test_lookup_route_with_query(client, monkeypatch, status_entity):
     """Task 5: GET /lookup/<lookup_name> supports query parameter"""
     import sys
     from pathlib import Path
@@ -313,17 +325,6 @@ def test_lookup_route_with_query(client, monkeypatch):
         return []
     
     monkeypatch.setattr(generic_repo, 'search_lookup', mock_search_lookup)
-    
-    # Add a 'status' entity to mock entities
-    from app import _ENTITIES
-    _ENTITIES['status'] = {
-        'name': 'status',
-        'table': 'statuses',
-        'label': 'Status',
-        'primary_key': 'id',
-        'list': {'columns': [{'name': 'id'}, {'name': 'name'}]},
-        'form': {'sections': []},
-    }
     
     response = client.get('/lookup/status?q=act')
     assert response.status_code == 200
@@ -355,8 +356,8 @@ def test_existing_detail_route_still_works(client):
 def test_entity_list_route_with_invalid_page_param(client):
     """Task 6: Test list route with invalid page parameter"""
     response = client.get('/customer/list?page=abc')
-    # Should handle gracefully - either 200 with default or 400
-    assert response.status_code in [200, 400]
+    # Invalid page falls back to default (1)
+    assert response.status_code == 200
 
 
 def test_entity_list_route_with_negative_page(client):
@@ -369,29 +370,28 @@ def test_entity_list_route_with_negative_page(client):
 def test_entity_list_route_with_invalid_page_size(client):
     """Task 6: Test list route with invalid page_size parameter"""
     response = client.get('/customer/list?page_size=invalid')
-    # Should handle gracefully
-    assert response.status_code in [200, 400]
+    # Invalid page_size is ignored; should still succeed
+    assert response.status_code == 200
 
 
 def test_entity_detail_route_with_invalid_id_type(client):
     """Task 6: Test detail route with non-numeric id"""
     response = client.get('/customer/detail/not_a_number')
-    # Should return 404 or handle gracefully
-    assert response.status_code in [404, 400]
+    # Non-numeric id should not match route -> 404
+    assert response.status_code == 404
 
 
 def test_entity_form_edit_with_invalid_id_type(client):
     """Task 6: Test form edit with invalid id type"""
     response = client.get('/customer/form/not_a_number')
-    # Should return 404 or 400
-    assert response.status_code in [404, 400]
+    assert response.status_code == 404
 
 
 def test_entity_save_without_data(client):
     """Task 6: Test save route with no form data"""
     response = client.post('/customer/save', data={})
-    # Should handle empty data - may return 400 or 501
-    assert response.status_code in [400, 501]
+    # Placeholder returns 501 until save is implemented
+    assert response.status_code == 501
 
 
 def test_entity_save_with_invalid_entity(client):
@@ -403,8 +403,8 @@ def test_entity_save_with_invalid_entity(client):
 def test_entity_action_without_payload(client):
     """Task 6: Test action route without POST data"""
     response = client.post('/customer/actions/export_csv')
-    # Should handle missing payload - return 501 for unregistered handler
-    assert response.status_code in [200, 404, 501]
+    # Unknown action placeholder -> 501 (Not Implemented)
+    assert response.status_code == 501
 
 
 def test_entity_action_with_empty_action_name(client):
@@ -415,7 +415,7 @@ def test_entity_action_with_empty_action_name(client):
     assert response.status_code == 404
 
 
-def test_lookup_route_with_very_long_query(client, monkeypatch):
+def test_lookup_route_with_very_long_query(client, monkeypatch, status_entity):
     """Task 6: Test lookup with very long query string"""
     import sys
     from pathlib import Path
@@ -431,23 +431,12 @@ def test_lookup_route_with_very_long_query(client, monkeypatch):
     
     monkeypatch.setattr(generic_repo, 'search_lookup', mock_search_lookup)
     
-    from app import _ENTITIES
-    _ENTITIES['status'] = {
-        'name': 'status',
-        'table': 'statuses',
-        'label': 'Status',
-        'primary_key': 'id',
-        'list': {'columns': [{'name': 'id'}, {'name': 'name'}]},
-        'form': {'sections': []},
-    }
-    
     long_query = "a" * 1000
     response = client.get(f'/lookup/status?q={long_query}')
-    # Should handle long query - may truncate or accept
-    assert response.status_code in [200, 400]
+    assert response.status_code == 200
 
 
-def test_lookup_route_with_missing_query_param(client, monkeypatch):
+def test_lookup_route_with_missing_query_param(client, monkeypatch, status_entity):
     """Task 6: Test lookup without query parameter"""
     import sys
     from pathlib import Path
@@ -463,28 +452,15 @@ def test_lookup_route_with_missing_query_param(client, monkeypatch):
     
     monkeypatch.setattr(generic_repo, 'search_lookup', mock_search_lookup)
     
-    from app import _ENTITIES
-    _ENTITIES['status'] = {
-        'name': 'status',
-        'table': 'statuses',
-        'label': 'Status',
-        'primary_key': 'id',
-        'list': {'columns': [{'name': 'id'}, {'name': 'name'}]},
-        'form': {'sections': []},
-    }
-    
     response = client.get('/lookup/status')
-    # Should handle missing query param with default empty string
     assert response.status_code == 200
 
 
 def test_lookup_route_nonexistent_lookup(client):
     """Task 6: Test lookup with non-existent lookup name"""
     response = client.get('/lookup/nonexistent_lookup')
-    # Current implementation returns 200 with empty results rather than 404
     assert response.status_code == 200
-    # Should return empty results
-    assert b'nonexistent_lookup' in response.data  # lookup_name is in template
+    assert b'No results found' in response.data
 
 
 def test_entity_list_with_special_chars_in_sort(client):
