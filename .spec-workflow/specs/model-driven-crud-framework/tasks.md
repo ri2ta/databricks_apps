@@ -28,7 +28,7 @@
   - _Requirements: 要件1, 要件2, 要件3, 要件4, 非機能(ユーザビリティ/パフォーマンス)_
   - _Prompt: Implement the task for spec model-driven-crud-framework, first run spec-workflow-guide to get the workflow guide then implement the task: Role: Flask/Jinja + HTMX UI developer | Task: テスト先行で datagrid/form/lookup/統一 entity テンプレートを実装し、mode で表示/編集を切替える | Restrictions: DaisyUI/Tailwind を用い、HTMX ターゲット/スワップを正しく指定、冗長な JS を追加しない、テスト先行 | _Leverage: design.md, draft レポートの HTML サンプル | _Requirements: 要件1-4, 非機能(ユーザビリティ/パフォーマンス) | Success: 失敗テスト→実装→緑で、一覧/詳細/フォーム/lookup が共通テンプレートで表示され HTMX で部分更新が機能する_
 
-- [ ] 5. Flask ルートを TDD で汎用化して配線する
+- [x] 5. Flask ルートを TDD で汎用化して配線する
   - File: approot/app.py (既存を拡張)
   - 内容: 先に FlaskClient でルート疎通/HTMX レスポンスを検証するテストを書き、汎用ルート `/<entity>/list`, `/<entity>/detail/<id>`, `/<entity>/form[/<id>]`, `/<entity>/save`, `/<entity>/actions/<action>`, `lookup/<lookup_name>` をサービス経由で呼び出す。mode を渡して単一テンプレートを描画。
   - _Leverage: generic_service.py, design.md Flask Routes 節, 既存 app.py のルーティング_
