@@ -1,0 +1,90 @@
+{% set entity_name = entity_name or entity.name %}
+
+<div class="card bg-base-100 shadow p-4">
+  <div class="flex justify-between items-center mb-4">
+    <h2 class="text-xl font-bold">{{ entity.label }}</h2>
+    
+    {% if entity.list.actions %}
+    <div class="flex gap-2">
+      {% for action in entity.list.actions %}
+      <button class="btn btn-sm btn-outline"
+              hx-post="{{ action.endpoint }}"
+              hx-target="#main-pane">
+        {{ action.label }}
+      </button>
+      {% endfor %}
+    </div>
+    {% endif %}
+  </div>
+
+  <div class="overflow-x-auto">
+    <table class="table w-full">
+      <thead>
+        <tr>
+          {% for col in columns %}
+          <th {% if col.width %}style="width: {{ col.width }}px"{% endif %}>
+            {% if col.sortable != False %}
+            <span class="cursor-pointer hover:underline"
+                  hx-get="/{{ entity_name }}/list?sort={{ col.name }}&page={{ page }}&page_size={{ page_size }}"
+                  hx-target="#main-pane"
+                  hx-push-url="true">
+              {{ col.label }}
+              {% if sort == col.name %}▲{% elif sort == '-' + col.name %}▼{% endif %}
+            </span>
+            {% else %}
+            {{ col.label }}
+            {% endif %}
+          </th>
+          {% endfor %}
+          <th>Actions</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for row in rows %}
+        <tr class="hover">
+          {% for col in columns %}
+          <td>{{ row[col.name] }}</td>
+          {% endfor %}
+          <td>
+            <button class="btn btn-sm btn-ghost"
+                    hx-get="/{{ entity_name }}/detail/{{ row[entity.primary_key] }}"
+                    hx-target="#main-pane"
+                    hx-push-url="true">
+              View
+            </button>
+            <button class="btn btn-sm btn-ghost"
+                    hx-get="/{{ entity_name }}/form/{{ row[entity.primary_key] }}"
+                    hx-target="#main-pane"
+                    hx-push-url="true">
+              Edit
+            </button>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+
+  {# Pagination controls #}
+  <div class="flex justify-center gap-2 mt-4">
+    {% if page > 1 %}
+    <button class="btn btn-sm"
+            hx-get="/{{ entity_name }}/list?page={{ page - 1 }}&page_size={{ page_size }}{% if sort %}&sort={{ sort }}{% endif %}"
+            hx-target="#main-pane"
+            hx-push-url="true">
+      Previous
+    </button>
+    {% endif %}
+    
+    <span class="btn btn-sm btn-disabled">Page {{ page }}</span>
+    
+    {% if rows|length == page_size %}
+    <button class="btn btn-sm"
+            hx-get="/{{ entity_name }}/list?page={{ page + 1 }}&page_size={{ page_size }}{% if sort %}&sort={{ sort }}{% endif %}"
+            hx-target="#main-pane"
+            hx-push-url="true">
+      Next
+    </button>
+    {% endif %}
+  </div>
+</div>

@@ -1,0 +1,15 @@
+<div class="form-control mb-2">
+  <label class="label">
+    <span class="label-text">{{ field.label }}</span>
+  </label>
+  {% if mode == 'view' %}
+  <textarea name="{{ field.name }}" 
+            rows="{{ field.rows or 3 }}" 
+            class="textarea textarea-bordered w-full" 
+            readonly>{{ value or '' }}</textarea>
+  {% else %}
+  <textarea name="{{ field.name }}" 
+            rows="{{ field.rows or 3 }}" 
+            class="textarea textarea-bordered w-full">{{ value or '' }}</textarea>
+  {% endif %}
+</div>

@@ -21,7 +21,7 @@
   - _Requirements: 要件1, 要件2, 要件3, 要件4_
   - _Prompt: Implement the task for spec model-driven-crud-framework, first run spec-workflow-guide to get the workflow guide then implement the task: Role: Python service layer developer | Task: TDD で render_list/detail/form と actions ディスパッチを実装 | Restrictions: mode で単一テンプレートを使う、存在しないエンティティ/レコード時はユーザーフレンドリーなメッセージ、テスト先行 | _Leverage: entities_loader, generic_repo, design.md | _Requirements: 要件1-4 | Success: 失敗テスト→実装→緑で、list/detail/form が正しく描画できる_
 
-- [ ] 4. テンプレート群を TDD で実装する（統一 entity テンプレート + コンポーネント）
+- [x] 4. テンプレート群を TDD で実装する（統一 entity テンプレート + コンポーネント）
   - Files: approot/templates/components/datagrid.html; approot/templates/components/form.html; approot/templates/components/field_types/*.html; approot/templates/components/lookup.html; approot/templates/partials/entity.html; approot/templates/partials/list.html
   - 内容: 先に HTMX レスポンスを検証するテスト（主要要素/モード切替/lookup）を書き、datagrid でページング・ソート、entity.html で mode(view/create/edit) 切替、form.html + field_types で入力、lookup モーダルを実装。
   - _Leverage: design.md Templates 節, 既存 templates/partials/list.html/detail.html の構造, draft レポートのサンプルマークアップ_

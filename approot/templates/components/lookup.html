@@ -1,0 +1,55 @@
+{% set modal_id = 'lookup-modal-' ~ field_name %}
+{% set results_id = 'lookup-results-' ~ field_name %}
+
+<dialog id="{{ modal_id }}" class="modal">
+  <div class="modal-box">
+    <h3 class="font-bold text-lg mb-4">Select {{ lookup_name|title }}</h3>
+    
+    <div class="form-control mb-4">
+      <input type="text" 
+             placeholder="Search..." 
+             class="input input-bordered w-full"
+             hx-get="/lookup/{{ lookup_name }}"
+             hx-trigger="keyup changed delay:300ms"
+             hx-target="#{{ results_id }}"
+             name="q">
+    </div>
+    
+    <div id="{{ results_id }}" class="overflow-y-auto max-h-96">
+      {% if results %}
+      <table class="table table-sm w-full">
+        <tbody>
+          {% for item in results %}
+          <tr class="hover cursor-pointer"
+              onclick="selectLookupValue_{{ field_name }}('{{ item.id }}', '{{ item.name }}')">
+            <td>{{ item.name }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+      <p class="text-gray-500">No results found</p>
+      {% endif %}
+    </div>
+    
+    <div class="modal-action">
+      <button type="button" class="btn" onclick="document.getElementById('{{ modal_id }}').close()">Close</button>
+    </div>
+  </div>
+  <form method="dialog" class="modal-backdrop">
+    <button>close</button>
+  </form>
+</dialog>
+
+<script>
+function selectLookupValue_{{ field_name }}(id, displayValue) {
+  const fieldName = '{{ field_name }}';
+  const modalId = '{{ modal_id }}';
+  const hidden = document.getElementById(fieldName);
+  const display = document.getElementById(fieldName + '_display');
+  if (hidden) hidden.value = id;
+  if (display) display.value = displayValue;
+  const modal = document.getElementById(modalId);
+  if (modal) modal.close();
+}
+</script>

@@ -1,0 +1,17 @@
+<div class="form-control mb-2">
+  <label class="label">
+    <span class="label-text">{{ field.label }}</span>
+  </label>
+  {% if mode == 'view' %}
+  <input type="text" 
+         name="{{ field.name }}" 
+         value="{{ value or '' }}" 
+         class="input input-bordered w-full" 
+         readonly>
+  {% else %}
+  <input type="text" 
+         name="{{ field.name }}" 
+         value="{{ value or '' }}" 
+         class="input input-bordered w-full">
+  {% endif %}
+</div>

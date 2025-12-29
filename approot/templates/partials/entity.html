@@ -1,0 +1,49 @@
+<div class="card bg-base-100 shadow p-4">
+  <div class="flex justify-between items-center mb-4">
+    <h2 class="text-xl font-bold">
+      {% if mode == 'create' %}
+        New {{ entity.label }}
+      {% elif mode == 'edit' %}
+        Edit {{ entity.label }}: {{ record[entity.primary_key] }}
+      {% else %}
+        {{ entity.label }}: {{ record[entity.primary_key] }}
+      {% endif %}
+    </h2>
+  </div>
+
+  {% if mode == 'view' %}
+    {# View mode: read-only display #}
+    {% include 'components/form.html' with context %}
+    
+    <div class="flex gap-2 mt-4">
+      <button class="btn btn-outline"
+              hx-get="/{{ entity.name }}/list"
+              hx-target="#main-pane"
+              hx-push-url="true">
+        Back to List
+      </button>
+      <button class="btn btn-primary"
+              hx-get="/{{ entity.name }}/form/{{ record[entity.primary_key] }}"
+              hx-target="#main-pane"
+              hx-push-url="true">
+        Edit
+      </button>
+    </div>
+  {% else %}
+    {# Create/Edit mode: editable form #}
+    {% set action_url = '/' + entity.name + '/save' %}
+    {% include 'components/form.html' with context %}
+    
+    <div class="flex gap-2 mt-4">
+      <button class="btn btn-outline"
+              hx-get="/{{ entity.name }}/list"
+              hx-target="#main-pane"
+              hx-push-url="true">
+        Cancel
+      </button>
+    </div>
+  {% endif %}
+</div>
+
+{# Include lookup modal for lookup fields #}
+{% include 'components/lookup.html' ignore missing %}
