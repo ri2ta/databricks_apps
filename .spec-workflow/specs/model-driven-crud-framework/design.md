@@ -58,14 +58,14 @@ flowchart LR
 - **Reuses:** `config/entities.yaml`。
 
 ### Generic Repository (`approot/repositories/generic_repo.py`)
-- **Purpose:** テーブル名・カラム定義に基づく list/detail/lookup クエリを実行。
-- **Interfaces:** `fetch_list(entity, page, page_size, sort)`、`fetch_detail(entity, pk)`、`search_lookup(entity, q, limit)`、`save(entity, payload)`（初期は読み取り中心）。
-- **Dependencies:** `db.py` のコネクション取得。
+- **Purpose:** テーブル名・カラム定義に基づく list/detail/lookup/save を実行。
+- **Interfaces:** `fetch_list(entity, page, page_size, sort)`、`fetch_detail(entity, pk)`、`search_lookup(entity, q, limit)`、`save(entity, payload)`（pk 有無で insert/update を分岐）。
+- **Dependencies:** `db.py` のコネクション取得。SQL はパラメータバインドを徹底し、カラム名はホワイトリストチェック。
 - **Reuses:** 既存 `db.py`。
 
 ### Generic Service (`approot/services/generic_service.py`)
-- **Purpose:** エンティティ定義を解釈し、テンプレート描画に必要なデータとコンテキストを組み立てる。
-- **Interfaces:** `render_list(entity, query_params)`、`render_detail(entity, pk)`、`render_form(entity, pk|None)`、`handle_action(entity, action_name, form_data)`。
+- **Purpose:** エンティティ定義を解釈し、テンプレート描画に必要なデータとコンテキストを組み立てる。保存とカスタムアクションのディスパッチも担う。
+- **Interfaces:** `render_list(entity, query_params)`、`render_detail(entity, pk)`、`render_form(entity, pk|None)`、`handle_action(entity, action_name, form_data)`、`handle_save(entity, form_data)`（バリデーション + repository.save を実行し、成功/失敗コンテキストを返す）。
 - **Dependencies:** Entities Loader、Generic Repository、テンプレートレンダリング。
 - **Reuses:** shared templates。
 
@@ -73,18 +73,19 @@ flowchart LR
 - **Purpose:** 汎用エンドポイントを束ね、HTMX 部分テンプレートを返す。
 - **Interfaces:**
   - `GET /<entity>/list` (htmx partial)
-  - `GET /<entity>/detail/<id>` (htmx partial, mode="view" を渡して単一テンプレートを読み取り専用で描画)
-  - `GET /<entity>/form[/<id>]` (htmx partial, mode="create"/"edit" を渡して同一テンプレートを編集用に描画)
-  - `POST /<entity>/save` (htmx partial response)
+  - `GET /<entity>/detail/<id>` (htmx partial, mode="view")
+  - `GET /<entity>/form[/<id>]` (htmx partial, mode="create"/"edit")
+  - `POST /<entity>/save` (htmx partial; service.handle_save でバリデーション・保存)
   - `GET /lookup/<lookup_name>` (lookup modal 内検索)
-  - `POST /<entity>/actions/<action>` (カスタムアクション)
+  - `POST /<entity>/actions/<action>` (カスタムアクション; 未登録時は 501)
 - **Dependencies:** Generic Service。
 
 ### Templates
 - **components/datagrid.html**: グリッド本体。ソート/ページングを hx-get で処理。
-- **components/form.html + field_types/**: フィールドレンダリングを型ごとに分割し、`mode` に応じて表示/入力を切り替える（view: read-only, create/edit: 入力要素）。
+- **components/form.html + field_types/**: フィールドレンダリングを型ごとに分割し、`mode` に応じて表示/入力を切り替える（view: read-only, create/edit: 入力要素）。フィールド単位でエラー表示をサポートする。
 - **components/lookup.html**: Lookup モーダルと検索結果描画。
-- **partials/entity.html**: 単一テンプレートで view/create/edit を描画。呼び出し側が `mode` を渡し、詳細表示（view）とフォーム（create/edit）を同一テンプレートで切り替える。`partials/list.html` は一覧用で、行クリックやボタン操作で `partials/entity.html` をターゲットへ差し替える。
+- **partials/entity.html**: 単一テンプレートで view/create/edit を描画。呼び出し側が `mode` を渡し、詳細表示（view）とフォーム（create/edit）を同一テンプレートで切り替える。保存成功時は detail 断片を返し、失敗時はフォーム断片にエラーを埋め込む。
+- **layout もしくは base テンプレート**: YAML バリデーションエラー用のバナー/スニペットを表示し、運用者に設定不備を知らせる。
 
 ## Data Models
 
@@ -126,7 +127,7 @@ flowchart LR
 ## Error Handling
 
 ### YAML 検証エラー
-- **Handling:** 読み込み時にバリデーションし、どのエンティティ/パスが不正かをログに出力。UI には「定義が不正」のメッセージを返す。
+- **Handling:** 読み込み時にバリデーションし、どのエンティティ/パスが不正かをログに出力。UI にはバナー/メッセージで設定エラーを通知し、詳細はログのみ。
 - **User Impact:** 管理者向けエラー表示（簡潔）、詳細はログ。
 
 ### DB アクセスエラー
@@ -134,8 +135,12 @@ flowchart LR
 - **User Impact:** 画面内に失敗通知を表示。再試行案内。
 
 ### カスタムアクション実行エラー
-- **Handling:** サービスで例外を握り、部分テンプレートでエラーを返す。入力検証を徹底。
+- **Handling:** サービスで例外を握り、部分テンプレートでエラーを返す。入力検証を徹底。未登録ハンドラは 501 を返す。
 - **User Impact:** アクション結果領域にエラー表示。
+
+### 保存エラー
+- **Handling:** バリデーション失敗は 400 でフィールド別エラーを含む部分テンプレートを返す。例外はログして 500 の簡潔メッセージを返す。
+- **User Impact:** ページ全体をリロードせず、フォーム上でエラーを確認できる。
 
 ## Testing Strategy
 
@@ -147,6 +152,8 @@ flowchart LR
 ### Integration Testing
 - Flask テストクライアントで HTMX エンドポイントを叩き、部分テンプレート内の主要要素（列ヘッダ、フィールド、ボタン生成、エラー表示）を検証。
 - Lookup エンドポイントの検索結果と選択動作（hidden 値更新の HTML）を確認。
+- `POST /<entity>/save` の成功/バリデーションエラー/404/500 経路を検証し、部分更新を確認。
+- `POST /<entity>/actions/<action>` で定義なし/未登録ハンドラ/成功/例外を検証。
 
 ### End-to-End Testing
 - 簡易なブラウザレス E2E（htmx リクエスト連鎖）で一覧→詳細→フォーム送信のフローを確認。

@@ -41,3 +41,31 @@
   - _Leverage: pytest, Flask test client, design.md Testing Strategy 節_
   - _Requirements: 要件1-4, 非機能(信頼性/パフォーマンス)
   - _Prompt: Implement the task for spec model-driven-crud-framework, first run spec-workflow-guide to get the workflow guide then implement the task: Role: Python QA/pytest エンジニア | Task: 先行テストを補強し、境界ケースとエラー系を追加して回帰を防ぐ | Restrictions: 外部接続はモック/スタブ化、主要要素の HTML を assert、パフォーマンスは緩やかなしきい値で確認 | _Leverage: pytest, FlaskClient, design.md | _Requirements: 要件1-4, 非機能(信頼性/パフォーマンス) | Success: 追加テストがカバレッジを向上し、回帰を検知できる状態になる_
+
+- [ ] 7. 汎用保存パイプラインを実装する（TDD）
+  - Files: approot/repositories/generic_repo.py; approot/services/generic_service.py; approot/app.py; templates/components/form.html (エラー表示拡張); 新規/既存テスト
+  - 内容: 先に `POST /<entity>/save` の成功/バリデーションエラー/404/500 経路をテストし、repository.save で insert/update を実装。service.handle_save で入力検証・pk 反映を行い、成功時は detail 断片、失敗時はフォーム断片にフィールドエラーを埋め込む。SQL はパラメータバインドを徹底。
+  - _Leverage: design.md Generic Repository/Service/Flask Routes/Testing Strategy, existing entity templates_
+  - _Requirements: 要件5, 要件7, 非機能(セキュリティ/信頼性/ユーザビリティ)
+  - _Prompt: Implement the task for spec model-driven-crud-framework, first run spec-workflow-guide to get the workflow guide then implement the task: Role: Python service+repo developer | Task: TDD で save エンドポイントのテストを先に書き、repository.save + service.handle_save + フォームエラー描画を実装 | Restrictions: パラメータバインド必須、フィールド別エラーを部分テンプレートで返す、既存エンドポイント互換を壊さない | _Leverage: design.md, templates/components/form.html | _Requirements: 要件5/7 | Success: save 成功で detail 200、バリデーション失敗で 400 エラー付きフォーム、未知エンティティ/レコードで 404 を返す_
+
+- [ ] 8. カスタムアクションディスパッチを実装する（TDD）
+  - Files: approot/services/generic_service.py; approot/app.py; テンプレート（必要ならアクション結果用スニペット）; テスト
+  - 内容: `POST /<entity>/actions/<action>` のテストを先に追加し、定義なし 404、未登録ハンドラ 501、ハンドラ成功 200、例外 500 を検証。handle_action でハンドラ登録を受け取り、結果を部分テンプレートで返す。
+  - _Leverage: design.md Generic Service/Flask Routes/Testing Strategy_
+  - _Requirements: 要件6, 非機能(セキュリティ/信頼性)
+  - _Prompt: Implement the task for spec model-driven-crud-framework, first run spec-workflow-guide to get the workflow guide then implement the task: Role: Python service layer developer | Task: TDD で actions エンドポイントの正常系/異常系を網羅し、ハンドラ呼び出しとエラー応答を実装 | Restrictions: 未登録ハンドラは 501、例外は握って 500、エラーメッセージは簡潔 | _Leverage: design.md | _Requirements: 要件6 | Success: テストが通り、アクション定義/登録の有無に応じたステータスで部分レスポンスが返る_
+
+- [ ] 9. YAML バリデーションエラーの UI 通知を実装する
+  - Files: approot/app.py (エンティティロード結果の扱い), templates/layout.html もしくは base/partials でバナー追加, tests/test_htmx_endpoints.py など
+  - 内容: entities_loader の検証結果が失敗した場合、ログを残しつつレイアウトに簡潔なバナー/メッセージを表示する実装を追加。存在しないエンティティ要求時も 404/500 の部分テンプレートを返すことをテストで確認。
+  - _Leverage: design.md YAML Error Handling, existing layout/partials_
+  - _Requirements: 要件7, 非機能(ユーザビリティ/信頼性)
+  - _Prompt: Implement the task for spec model-driven-crud-framework, first run spec-workflow-guide to get the workflow guide then implement the task: Role: Flask/Jinja developer | Task: YAML 構成エラーを UI で可視化するバナーを追加し、未定義エンティティ要求で部分テンプレートのエラーを返す | Restrictions: 詳細エラーはログのみ、UI は簡潔、既存スタイルに合わせる | _Leverage: design.md, layout.html | _Requirements: 要件7 | Success: バナーが表示され、エンティティ不正時の HTMX 応答が 404/500 でテストに合格する_
+
+- [x] 10. 仕様更新（保存/アクション/YAML エラー UI の要件/設計追記）
+  - Files: .spec-workflow/specs/model-driven-crud-framework/requirements.md; design.md; tasks.md
+  - 内容: 保存とバリデーション応答、カスタムアクションディスパッチ、YAML エラーバナーの要件を日本語で明文化し、設計とタスクを拡張して実装フェーズの準備を完了。
+  - _Leverage: 要件5-7, design.md 更新方針_
+  - _Requirements: 要件5-7, 非機能(信頼性/ユーザビリティ/セキュリティ)
+  - _Prompt: (記録用)_
