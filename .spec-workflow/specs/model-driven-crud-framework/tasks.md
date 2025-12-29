@@ -35,7 +35,7 @@
   - _Requirements: 要件1-4, 非機能(信頼性/セキュリティ)_
   - _Prompt: Implement the task for spec model-driven-crud-framework, first run spec-workflow-guide to get the workflow guide then implement the task: Role: Flask developer | Task: テスト先行で汎用エンドポイントを追加し、HTMX 部分テンプレートを返す | Restrictions: 既存ルートを壊さない、例外はログして簡潔なメッセージを返す、mode を適切に渡す、テスト先行 | _Leverage: generic_service, design.md | _Requirements: 要件1-4 | Success: 失敗テスト→実装→緑で、各エンドポイントがサービスを呼び、共通テンプレートが適切なモードで描画される_
 
-- [ ] 6. テストスイートを強化する（ローダー/リポジトリ/サービス/HTMX）
+- [x] 6. テストスイートを強化する（ローダー/リポジトリ/サービス/HTMX）
   - Files: tests/test_entities_loader.py; tests/test_generic_repo.py; tests/test_generic_service.py; tests/test_htmx_endpoints.py (pytest, FlaskClient)
   - 内容: 既に各タスクで先行させたテストを集約・補完し、境界ケースとエラー経路を追加してカバレッジを高める。外部接続はモック/スタブ化し、主要 HTML 要素を検証。
   - _Leverage: pytest, Flask test client, design.md Testing Strategy 節_
