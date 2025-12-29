@@ -1,0 +1,46 @@
+<dialog id="lookup-modal" class="modal">
+  <div class="modal-box">
+    <h3 class="font-bold text-lg mb-4">Select {{ lookup_name|title }}</h3>
+    
+    <div class="form-control mb-4">
+      <input type="text" 
+             placeholder="Search..." 
+             class="input input-bordered w-full"
+             hx-get="/lookup/{{ lookup_name }}"
+             hx-trigger="keyup changed delay:300ms"
+             hx-target="#lookup-results"
+             name="q">
+    </div>
+    
+    <div id="lookup-results" class="overflow-y-auto max-h-96">
+      {% if results %}
+      <table class="table table-sm w-full">
+        <tbody>
+          {% for item in results %}
+          <tr class="hover cursor-pointer"
+              onclick="selectLookupValue('{{ field_name }}', '{{ item.id }}', '{{ item.name }}'); document.getElementById('lookup-modal').close()">
+            <td>{{ item.name }}</td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+      {% else %}
+      <p class="text-gray-500">No results found</p>
+      {% endif %}
+    </div>
+    
+    <div class="modal-action">
+      <button type="button" class="btn" onclick="document.getElementById('lookup-modal').close()">Close</button>
+    </div>
+  </div>
+  <form method="dialog" class="modal-backdrop">
+    <button>close</button>
+  </form>
+</dialog>
+
+<script>
+function selectLookupValue(fieldName, id, displayValue) {
+  document.getElementById(fieldName).value = id;
+  document.getElementById(fieldName + '_display').value = displayValue;
+}
+</script>

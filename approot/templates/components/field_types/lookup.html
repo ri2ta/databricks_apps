@@ -1,0 +1,29 @@
+<div class="form-control mb-2">
+  <label class="label">
+    <span class="label-text">{{ field.label }}</span>
+  </label>
+  {% if mode == 'view' %}
+  <input type="text" 
+         name="{{ field.name }}_display" 
+         value="{{ value or '' }}" 
+         class="input input-bordered w-full" 
+         readonly>
+  {% else %}
+  <div class="join w-full">
+    <input type="text" 
+           id="{{ field.name }}_display"
+           name="{{ field.name }}_display" 
+           value="{{ value or '' }}" 
+           class="input input-bordered join-item flex-1" 
+           readonly>
+    <button type="button" 
+            class="btn btn-outline join-item"
+            hx-get="/lookup/{{ field.lookup }}?field={{ field.name }}"
+            hx-target="#lookup-modal-content"
+            onclick="document.getElementById('lookup-modal').showModal()">
+      Select
+    </button>
+  </div>
+  <input type="hidden" name="{{ field.name }}" id="{{ field.name }}" value="{{ value or '' }}">
+  {% endif %}
+</div>
