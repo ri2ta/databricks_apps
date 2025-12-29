@@ -7,7 +7,7 @@
   - _Requirements: 要件1, 非機能(セキュリティ/信頼性)_
   - _Prompt: Implement the task for spec model-driven-crud-framework, first run spec-workflow-guide to get the workflow guide then implement the task: Role: Python backend developer (validation重視) | Task: TDD で YAML ローダー/バリデータのテストを先に書き、EntityConfig に正規化して返す関数を実装 | Restrictions: 外部 I/O は entities.yaml のみ、エラーは例外でなく検証結果として返す関数を用意、テスト先行 | _Leverage: config/entities.yaml, design.md | _Requirements: 要件1, 非機能(セキュリティ/信頼性) | Success: 失敗するテスト→実装→テスト緑の流れで、必須キー欠落や不正型で明示的エラーを返し、有効な定義は dict で取得できる_
 
-- [ ] 2. 汎用リポジトリを TDD で実装する（list/detail/lookup）
+- [x] 2. 汎用リポジトリを TDD で実装する（list/detail/lookup）
   - File: approot/repositories/generic_repo.py
   - 内容: 先にリポジトリの単体テストを作成し、table/primary_key/columns に基づく list/detail/lookup を実装。ページング・ソートをサポートし、db.py のプールを利用。SQL バインドでインジェクションを防ぐ。
   - _Leverage: approot/db.py, design.md Generic Repository 節_
