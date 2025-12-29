@@ -1,0 +1,14 @@
+{
+  "filePath": ".spec-workflow/specs/entity-save-and-actions/requirements.md",
+  "currentVersion": 1,
+  "snapshots": [
+    {
+      "version": 1,
+      "filename": "snapshot-001.json",
+      "timestamp": "2025-12-29T08:17:56.101Z",
+      "trigger": "initial",
+      "approvalId": "approval_1766996276088_txo62806z",
+      "approvalTitle": "entity-save-and-actions requirements"
+    }
+  ]
+}
