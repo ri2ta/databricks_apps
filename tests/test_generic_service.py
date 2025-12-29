@@ -234,3 +234,291 @@ def test_render_list_handles_repo_error(monkeypatch, entities):
     assert ctx["ok"] is False
     assert ctx["status"] == 500
     assert "boom" in ctx["error"].lower()
+
+
+# Task 6: Edge cases and error paths
+
+
+def test_render_list_with_none_entities():
+    """Task 6: Test render_list when entities dict is None"""
+    from approot.services import generic_service
+
+    ctx = generic_service.render_list(None, "customer")
+
+    assert ctx["ok"] is False
+    assert ctx["status"] == 404
+    assert "unknown entity" in ctx["error"].lower()
+
+
+def test_render_list_with_empty_entities():
+    """Task 6: Test render_list with empty entities dict"""
+    from approot.services import generic_service
+
+    ctx = generic_service.render_list({}, "customer")
+
+    assert ctx["ok"] is False
+    assert ctx["status"] == 404
+
+
+def test_render_detail_with_none_entities():
+    """Task 6: Test render_detail when entities dict is None"""
+    from approot.services import generic_service
+
+    ctx = generic_service.render_detail(None, "customer", pk=1)
+
+    assert ctx["ok"] is False
+    assert ctx["status"] == 404
+
+
+def test_render_form_with_none_entities():
+    """Task 6: Test render_form when entities dict is None"""
+    from approot.services import generic_service
+
+    ctx = generic_service.render_form(None, "customer")
+
+    assert ctx["ok"] is False
+    assert ctx["status"] == 404
+
+
+def test_render_detail_handles_repo_error(monkeypatch, entities):
+    """Task 6: Test render_detail when repository raises exception"""
+    from approot.services import generic_service
+
+    def boom(*args, **kwargs):
+        raise RuntimeError("database error")
+
+    monkeypatch.setattr(generic_service.generic_repo, "fetch_detail", boom)
+
+    ctx = generic_service.render_detail(entities, "customer", pk=1)
+
+    assert ctx["ok"] is False
+    assert ctx["status"] == 500
+    assert "database error" in ctx["error"].lower()
+
+
+def test_render_form_edit_handles_repo_error(monkeypatch, entities):
+    """Task 6: Test render_form in edit mode when repository raises exception"""
+    from approot.services import generic_service
+
+    def boom(*args, **kwargs):
+        raise RuntimeError("fetch failed")
+
+    monkeypatch.setattr(generic_service.generic_repo, "fetch_detail", boom)
+
+    ctx = generic_service.render_form(entities, "customer", pk=1)
+
+    assert ctx["ok"] is False
+    assert ctx["status"] == 500
+    assert "fetch failed" in ctx["error"].lower()
+
+
+def test_handle_action_with_none_entities():
+    """Task 6: Test handle_action when entities dict is None"""
+    from approot.services import generic_service
+
+    ctx = generic_service.handle_action(
+        None,
+        entity_name="customer",
+        action_name="test",
+        payload={}
+    )
+
+    assert ctx["ok"] is False
+    assert ctx["status"] == 404
+
+
+def test_handle_action_with_empty_payload():
+    """Task 6: Test handle_action with None payload"""
+    from approot.services import generic_service
+
+    entities = {
+        "customer": {
+            "name": "customer",
+            "table": "customers",
+            "form": {
+                "actions": [
+                    {"name": "test_action", "label": "Test"}
+                ]
+            }
+        }
+    }
+
+    def handler(entity, payload):
+        return {"ok": True, "payload_received": payload}
+
+    ctx = generic_service.handle_action(
+        entities,
+        entity_name="customer",
+        action_name="test_action",
+        payload=None,
+        handlers={"test_action": handler}
+    )
+
+    assert ctx["ok"] is True
+    assert ctx["result"]["payload_received"] == {}
+
+
+def test_handle_action_handler_raises_exception(monkeypatch, entities):
+    """Task 6: Test handle_action when handler raises exception"""
+    from approot.services import generic_service
+
+    def failing_handler(entity, payload):
+        raise ValueError("handler failed")
+
+    ctx = generic_service.handle_action(
+        entities,
+        entity_name="customer",
+        action_name="calc_points",
+        payload={"id": 1},
+        handlers={"calc_points": failing_handler}
+    )
+
+    assert ctx["ok"] is False
+    assert ctx["status"] == 500
+    assert "handler failed" in ctx["error"].lower()
+
+
+def test_render_list_with_missing_list_config(monkeypatch):
+    """Task 6: Test render_list when entity has no list config"""
+    from approot.services import generic_service
+
+    entities = {
+        "customer": {
+            "name": "customer",
+            "table": "customers",
+            # Missing "list" key
+            "form": {"sections": []}
+        }
+    }
+
+    monkeypatch.setattr(
+        generic_service.generic_repo,
+        "fetch_list",
+        lambda entity, page=1, page_size=None, sort=None: []
+    )
+
+    ctx = generic_service.render_list(entities, "customer")
+
+    assert ctx["ok"] is True
+    # Should handle missing list config gracefully
+    assert ctx["columns"] == []
+    assert ctx["actions"] == []
+
+
+def test_render_detail_with_missing_form_config():
+    """Task 6: Test render_detail when entity has no form config"""
+    from approot.services import generic_service
+
+    entities = {
+        "customer": {
+            "name": "customer",
+            "table": "customers",
+            "list": {"columns": []},
+            # Missing "form" key
+        }
+    }
+
+    def mock_fetch_detail(entity, pk):
+        return {"id": 1, "name": "Alice"}
+
+    import approot.services.generic_service as gs
+    original_fetch = gs.generic_repo.fetch_detail
+    gs.generic_repo.fetch_detail = mock_fetch_detail
+
+    try:
+        ctx = generic_service.render_detail(entities, "customer", pk=1)
+
+        assert ctx["ok"] is True
+        # Should handle missing form config gracefully
+        assert ctx["actions"] == []
+    finally:
+        gs.generic_repo.fetch_detail = original_fetch
+
+
+def test_render_form_create_with_missing_form_config():
+    """Task 6: Test render_form create mode when entity has no form config"""
+    from approot.services import generic_service
+
+    entities = {
+        "customer": {
+            "name": "customer",
+            "table": "customers",
+            "list": {"columns": []},
+            # Missing "form" key
+        }
+    }
+
+    ctx = generic_service.render_form(entities, "customer")
+
+    assert ctx["ok"] is True
+    assert ctx["mode"] == "create"
+    assert ctx["form"] == {}
+    assert ctx["actions"] == []
+
+
+def test_find_action_in_list_actions():
+    """Task 6: Test that actions can be found in list.actions"""
+    from approot.services.generic_service import _find_action
+
+    entity = {
+        "list": {
+            "actions": [
+                {"name": "export", "label": "Export"}
+            ]
+        },
+        "form": {
+            "actions": []
+        }
+    }
+
+    action = _find_action(entity, "export")
+    assert action is not None
+    assert action["name"] == "export"
+
+
+def test_find_action_not_in_any_list():
+    """Task 6: Test _find_action returns None for non-existent action"""
+    from approot.services.generic_service import _find_action
+
+    entity = {
+        "list": {"actions": []},
+        "form": {"actions": [{"name": "save", "label": "Save"}]}
+    }
+
+    action = _find_action(entity, "nonexistent")
+    assert action is None
+
+
+def test_render_list_with_none_page_and_sort(monkeypatch, entities):
+    """Task 6: Test render_list with None page and sort parameters"""
+    from approot.services import generic_service
+
+    rows = [{"id": 1, "name": "Alice"}]
+    monkeypatch.setattr(
+        generic_service.generic_repo,
+        "fetch_list",
+        lambda entity, page=1, page_size=None, sort=None: rows
+    )
+
+    ctx = generic_service.render_list(entities, "customer", page=None, sort=None)
+
+    assert ctx["ok"] is True
+    assert ctx["page"] == 1  # Should default to 1
+    assert ctx["sort"] == "name"  # Should use default_sort
+
+
+def test_handle_action_with_empty_handlers_dict(entities):
+    """Task 6: Test handle_action with empty handlers dict instead of None"""
+    from approot.services import generic_service
+
+    ctx = generic_service.handle_action(
+        entities,
+        entity_name="customer",
+        action_name="calc_points",
+        payload={},
+        handlers={}  # Empty dict, not None
+    )
+
+    assert ctx["ok"] is False
+    assert ctx["status"] == 501
+    assert "handler" in ctx["error"].lower()

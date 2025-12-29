@@ -173,3 +173,234 @@ def test_search_lookup_uses_like(monkeypatch, entity_cfg):
     assert "LIKE ?" in query
     assert params == ("%Al%", 3)
     assert [r["name"] for r in result] == ["Alice", "Alan"]
+
+
+# Task 6: Edge cases and error paths
+
+
+def test_fetch_list_page_zero(monkeypatch, entity_cfg):
+    """Task 6: Test fetch_list with page=0 (should be treated as page 1)"""
+    from approot.repositories import generic_repo
+
+    rows = [(1, "Alice")]
+    description = [("id",), ("name",), ("email",)]
+    cursor = DummyCursor(rows=rows, description=description)
+    conn = DummyConnection(cursor)
+
+    monkeypatch.setattr(generic_repo.db, "get_connection", lambda timeout=None: conn)
+    monkeypatch.setattr(generic_repo.db, "release_connection", lambda c: None)
+
+    result = generic_repo.fetch_list(entity_cfg, page=0)
+
+    query, params = cursor.executed[0]
+    # page=0 should be treated as page=1, so offset should be 0
+    assert params == (20, 0)
+
+
+def test_fetch_list_negative_page(monkeypatch, entity_cfg):
+    """Task 6: Test fetch_list with negative page number"""
+    from approot.repositories import generic_repo
+
+    rows = [(1, "Alice")]
+    description = [("id",), ("name",)]
+    cursor = DummyCursor(rows=rows, description=description)
+    conn = DummyConnection(cursor)
+
+    monkeypatch.setattr(generic_repo.db, "get_connection", lambda timeout=None: conn)
+    monkeypatch.setattr(generic_repo.db, "release_connection", lambda c: None)
+
+    result = generic_repo.fetch_list(entity_cfg, page=-5)
+
+    query, params = cursor.executed[0]
+    # Negative page should be treated as page=1
+    assert params == (20, 0)
+
+
+def test_fetch_list_large_page_size(monkeypatch, entity_cfg):
+    """Task 6: Test fetch_list with very large page_size"""
+    from approot.repositories import generic_repo
+
+    rows = []
+    description = [("id",), ("name",)]
+    cursor = DummyCursor(rows=rows, description=description)
+    conn = DummyConnection(cursor)
+
+    monkeypatch.setattr(generic_repo.db, "get_connection", lambda timeout=None: conn)
+    monkeypatch.setattr(generic_repo.db, "release_connection", lambda c: None)
+
+    result = generic_repo.fetch_list(entity_cfg, page=1, page_size=10000)
+
+    query, params = cursor.executed[0]
+    assert params == (10000, 0)
+    assert result == []
+
+
+def test_fetch_list_empty_result_set(monkeypatch, entity_cfg):
+    """Task 6: Test fetch_list with empty result set"""
+    from approot.repositories import generic_repo
+
+    rows = []
+    description = [("id",), ("name",), ("email",)]
+    cursor = DummyCursor(rows=rows, description=description)
+    conn = DummyConnection(cursor)
+
+    monkeypatch.setattr(generic_repo.db, "get_connection", lambda timeout=None: conn)
+    monkeypatch.setattr(generic_repo.db, "release_connection", lambda c: None)
+
+    result = generic_repo.fetch_list(entity_cfg)
+
+    assert result == []
+    assert isinstance(result, list)
+
+
+def test_fetch_detail_returns_none_for_missing_record(monkeypatch, entity_cfg):
+    """Task 6: Test fetch_detail when record doesn't exist"""
+    from approot.repositories import generic_repo
+
+    description = [("id",), ("name",), ("email",)]
+    cursor = DummyCursor(description=description, fetchone_result=None)
+    conn = DummyConnection(cursor)
+
+    monkeypatch.setattr(generic_repo.db, "get_connection", lambda timeout=None: conn)
+    monkeypatch.setattr(generic_repo.db, "release_connection", lambda c: None)
+
+    result = generic_repo.fetch_detail(entity_cfg, pk=999)
+
+    assert result is None
+
+
+def test_search_lookup_empty_query(monkeypatch, entity_cfg):
+    """Task 6: Test search_lookup with empty query string"""
+    from approot.repositories import generic_repo
+
+    rows = [(1, "Alice"), (2, "Bob")]
+    description = [("id",), ("name",)]
+    cursor = DummyCursor(rows=rows, description=description)
+    conn = DummyConnection(cursor)
+
+    monkeypatch.setattr(generic_repo.db, "get_connection", lambda timeout=None: conn)
+    monkeypatch.setattr(generic_repo.db, "release_connection", lambda c: None)
+
+    result = generic_repo.search_lookup(entity_cfg, q="", limit=10)
+
+    query, params = cursor.executed[0]
+    # Empty query should still work with LIKE pattern
+    assert params == ("%%", 10)
+    assert len(result) == 2
+
+
+def test_search_lookup_no_results(monkeypatch, entity_cfg):
+    """Task 6: Test search_lookup with no matching results"""
+    from approot.repositories import generic_repo
+
+    rows = []
+    description = [("id",), ("name",)]
+    cursor = DummyCursor(rows=rows, description=description)
+    conn = DummyConnection(cursor)
+
+    monkeypatch.setattr(generic_repo.db, "get_connection", lambda timeout=None: conn)
+    monkeypatch.setattr(generic_repo.db, "release_connection", lambda c: None)
+
+    result = generic_repo.search_lookup(entity_cfg, q="nonexistent", limit=10)
+
+    assert result == []
+
+
+def test_search_lookup_limit_zero(monkeypatch, entity_cfg):
+    """Task 6: Test search_lookup with limit=0"""
+    from approot.repositories import generic_repo
+
+    rows = []
+    description = [("id",), ("name",)]
+    cursor = DummyCursor(rows=rows, description=description)
+    conn = DummyConnection(cursor)
+
+    monkeypatch.setattr(generic_repo.db, "get_connection", lambda timeout=None: conn)
+    monkeypatch.setattr(generic_repo.db, "release_connection", lambda c: None)
+
+    result = generic_repo.search_lookup(entity_cfg, q="test", limit=0)
+
+    query, params = cursor.executed[0]
+    assert params == ("%test%", 0)
+    assert result == []
+
+
+def test_safe_identifier_rejects_sql_injection(entity_cfg):
+    """Task 6: Test that unsafe identifiers raise ValueError"""
+    from approot.repositories import generic_repo
+    import pytest
+
+    # Test various SQL injection attempts
+    with pytest.raises(ValueError, match="unsafe identifier"):
+        generic_repo._safe_identifier("table; DROP TABLE users--")
+
+    with pytest.raises(ValueError, match="unsafe identifier"):
+        generic_repo._safe_identifier("col' OR '1'='1")
+
+    with pytest.raises(ValueError, match="unsafe identifier"):
+        generic_repo._safe_identifier("col-name")  # hyphen not allowed
+
+    with pytest.raises(ValueError, match="unsafe identifier"):
+        generic_repo._safe_identifier("123invalid")  # can't start with number
+
+    # Valid identifiers should pass
+    assert generic_repo._safe_identifier("valid_name") == "valid_name"
+    assert generic_repo._safe_identifier("_underscore") == "_underscore"
+    assert generic_repo._safe_identifier("CamelCase123") == "CamelCase123"
+
+
+def test_fetch_list_with_single_column(monkeypatch):
+    """Task 6: Test fetch_list with entity that has only primary key column"""
+    from approot.repositories import generic_repo
+
+    minimal_entity = {
+        "name": "minimal",
+        "table": "minimal_table",
+        "primary_key": "id",
+        "list": {
+            "columns": [],  # No additional columns
+        }
+    }
+
+    rows = [(1,), (2,)]
+    description = [("id",)]
+    cursor = DummyCursor(rows=rows, description=description)
+    conn = DummyConnection(cursor)
+
+    monkeypatch.setattr(generic_repo.db, "get_connection", lambda timeout=None: conn)
+    monkeypatch.setattr(generic_repo.db, "release_connection", lambda c: None)
+
+    result = generic_repo.fetch_list(minimal_entity)
+
+    assert len(result) == 2
+    assert result[0] == {"id": 1}
+    assert result[1] == {"id": 2}
+
+
+def test_search_lookup_with_single_column_entity(monkeypatch):
+    """Task 6: Test search_lookup with entity that has only one column"""
+    from approot.repositories import generic_repo
+
+    minimal_entity = {
+        "name": "status",
+        "table": "statuses",
+        "primary_key": "id",
+        "list": {
+            "columns": [{"name": "id"}],  # Only one column
+        }
+    }
+
+    rows = [("active",), ("inactive",)]
+    description = [("id",)]
+    cursor = DummyCursor(rows=rows, description=description)
+    conn = DummyConnection(cursor)
+
+    monkeypatch.setattr(generic_repo.db, "get_connection", lambda timeout=None: conn)
+    monkeypatch.setattr(generic_repo.db, "release_connection", lambda c: None)
+
+    result = generic_repo.search_lookup(minimal_entity, q="act", limit=5)
+
+    query, params = cursor.executed[0]
+    # When only one column exists, use it for both pk and display
+    assert "LIKE ?" in query
+    assert params == ("%act%", 5)

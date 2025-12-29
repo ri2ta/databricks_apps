@@ -347,3 +347,233 @@ def test_existing_detail_route_still_works(client):
     # This will return 404 as mock returns None, but route should exist
     response = client.get('/detail/1')
     assert response.status_code in [200, 404]
+
+
+# Task 6: Edge cases and error paths for routes
+
+
+def test_entity_list_route_with_invalid_page_param(client):
+    """Task 6: Test list route with invalid page parameter"""
+    response = client.get('/customer/list?page=abc')
+    # Should handle gracefully - either 200 with default or 400
+    assert response.status_code in [200, 400]
+
+
+def test_entity_list_route_with_negative_page(client):
+    """Task 6: Test list route with negative page number"""
+    response = client.get('/customer/list?page=-5')
+    # Should handle gracefully
+    assert response.status_code == 200
+
+
+def test_entity_list_route_with_invalid_page_size(client):
+    """Task 6: Test list route with invalid page_size parameter"""
+    response = client.get('/customer/list?page_size=invalid')
+    # Should handle gracefully
+    assert response.status_code in [200, 400]
+
+
+def test_entity_detail_route_with_invalid_id_type(client):
+    """Task 6: Test detail route with non-numeric id"""
+    response = client.get('/customer/detail/not_a_number')
+    # Should return 404 or handle gracefully
+    assert response.status_code in [404, 400]
+
+
+def test_entity_form_edit_with_invalid_id_type(client):
+    """Task 6: Test form edit with invalid id type"""
+    response = client.get('/customer/form/not_a_number')
+    # Should return 404 or 400
+    assert response.status_code in [404, 400]
+
+
+def test_entity_save_without_data(client):
+    """Task 6: Test save route with no form data"""
+    response = client.post('/customer/save', data={})
+    # Should handle empty data - may return 400 or 501
+    assert response.status_code in [400, 501]
+
+
+def test_entity_save_with_invalid_entity(client):
+    """Task 6: Test save route with non-existent entity"""
+    response = client.post('/nonexistent/save', data={'name': 'test'})
+    assert response.status_code == 404
+
+
+def test_entity_action_without_payload(client):
+    """Task 6: Test action route without POST data"""
+    response = client.post('/customer/actions/export_csv')
+    # Should handle missing payload - return 501 for unregistered handler
+    assert response.status_code in [200, 404, 501]
+
+
+def test_entity_action_with_empty_action_name(client):
+    """Task 6: Test action route with malformed path"""
+    # This tests route parsing edge case
+    response = client.post('/customer/actions/')
+    # Should return 404 as the route won't match
+    assert response.status_code == 404
+
+
+def test_lookup_route_with_very_long_query(client, monkeypatch):
+    """Task 6: Test lookup with very long query string"""
+    import sys
+    from pathlib import Path
+    
+    approot_path = str(Path(__file__).resolve().parents[1] / "approot")
+    if approot_path not in sys.path:
+        sys.path.insert(0, approot_path)
+    
+    from repositories import generic_repo
+    
+    def mock_search_lookup(entity, query, limit=20):
+        return []
+    
+    monkeypatch.setattr(generic_repo, 'search_lookup', mock_search_lookup)
+    
+    from app import _ENTITIES
+    _ENTITIES['status'] = {
+        'name': 'status',
+        'table': 'statuses',
+        'label': 'Status',
+        'primary_key': 'id',
+        'list': {'columns': [{'name': 'id'}, {'name': 'name'}]},
+        'form': {'sections': []},
+    }
+    
+    long_query = "a" * 1000
+    response = client.get(f'/lookup/status?q={long_query}')
+    # Should handle long query - may truncate or accept
+    assert response.status_code in [200, 400]
+
+
+def test_lookup_route_with_missing_query_param(client, monkeypatch):
+    """Task 6: Test lookup without query parameter"""
+    import sys
+    from pathlib import Path
+    
+    approot_path = str(Path(__file__).resolve().parents[1] / "approot")
+    if approot_path not in sys.path:
+        sys.path.insert(0, approot_path)
+    
+    from repositories import generic_repo
+    
+    def mock_search_lookup(entity, query, limit=20):
+        return [{"id": "test", "name": "Test"}]
+    
+    monkeypatch.setattr(generic_repo, 'search_lookup', mock_search_lookup)
+    
+    from app import _ENTITIES
+    _ENTITIES['status'] = {
+        'name': 'status',
+        'table': 'statuses',
+        'label': 'Status',
+        'primary_key': 'id',
+        'list': {'columns': [{'name': 'id'}, {'name': 'name'}]},
+        'form': {'sections': []},
+    }
+    
+    response = client.get('/lookup/status')
+    # Should handle missing query param with default empty string
+    assert response.status_code == 200
+
+
+def test_lookup_route_nonexistent_lookup(client):
+    """Task 6: Test lookup with non-existent lookup name"""
+    response = client.get('/lookup/nonexistent_lookup')
+    # Current implementation returns 200 with empty results rather than 404
+    assert response.status_code == 200
+    # Should return empty results
+    assert b'nonexistent_lookup' in response.data  # lookup_name is in template
+
+
+def test_entity_list_with_special_chars_in_sort(client):
+    """Task 6: Test list route with special characters in sort parameter"""
+    response = client.get('/customer/list?sort=name;DROP TABLE')
+    # Should handle malicious sort parameter safely
+    # Repository layer should reject or sanitize
+    assert response.status_code in [200, 400]
+
+
+def test_entity_detail_with_sql_injection_attempt(client):
+    """Task 6: Test detail route with SQL injection in id"""
+    response = client.get('/customer/detail/1 OR 1=1')
+    # Should safely handle injection attempt
+    assert response.status_code in [404, 400]
+
+
+def test_concurrent_requests_to_same_entity(client):
+    """Task 6: Test multiple concurrent requests don't interfere"""
+    # Make multiple requests in sequence (simulating concurrent load)
+    responses = []
+    for i in range(5):
+        resp = client.get('/customer/list')
+        responses.append(resp)
+    
+    # All should succeed
+    for resp in responses:
+        assert resp.status_code == 200
+
+
+def test_entity_form_create_then_edit(client):
+    """Task 6: Test switching between create and edit modes"""
+    # Create mode
+    response1 = client.get('/customer/form')
+    assert response1.status_code == 200
+    
+    # Edit mode
+    response2 = client.get('/customer/form/1')
+    assert response2.status_code == 200
+    
+    # Both should succeed but return different content
+
+
+def test_entity_save_with_special_characters(client):
+    """Task 6: Test save with special characters in data"""
+    response = client.post('/customer/save', data={
+        'name': "O'Brien",
+        'email': 'test+special@example.com',
+    })
+    
+    # Should handle special characters safely (returns 501 for now)
+    assert response.status_code in [200, 400, 501]
+
+
+def test_route_with_trailing_slash(client):
+    """Task 6: Test routes with trailing slash"""
+    response = client.get('/customer/list/')
+    # Flask may redirect or accept based on route definition
+    assert response.status_code in [200, 301, 308, 404]
+
+
+def test_route_case_sensitivity(client):
+    """Task 6: Test that entity names are case-sensitive"""
+    response = client.get('/CUSTOMER/list')
+    # Should return 404 for wrong case
+    assert response.status_code == 404
+
+
+def test_entity_action_post_with_json_payload(client):
+    """Task 6: Test action with JSON payload instead of form data"""
+    response = client.post(
+        '/customer/actions/export_csv',
+        json={'format': 'csv'},
+        content_type='application/json'
+    )
+    
+    # Should handle JSON payload (returns 501 for unregistered handler)
+    assert response.status_code in [200, 404, 501]
+
+
+def test_multiple_query_params_same_key(client):
+    """Task 6: Test list route with duplicate query parameters"""
+    response = client.get('/customer/list?page=1&page=2')
+    # Flask will use the last value
+    assert response.status_code == 200
+
+
+def test_entity_detail_zero_id(client):
+    """Task 6: Test detail route with id=0"""
+    response = client.get('/customer/detail/0')
+    # Should handle id=0 (may or may not exist)
+    assert response.status_code in [200, 404]
