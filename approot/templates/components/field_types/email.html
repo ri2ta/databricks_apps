@@ -12,6 +12,11 @@
   <input type="email" 
          name="{{ field.name }}" 
          value="{{ value or '' }}" 
-         class="input input-bordered w-full">
+         class="input input-bordered w-full {% if field_error %}input-error{% endif %}">
+  {% endif %}
+  {% if field_error %}
+  <label class="label">
+    <span class="label-text-alt text-error">{{ field_error }}</span>
+  </label>
   {% endif %}
 </div>

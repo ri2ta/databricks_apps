@@ -107,15 +107,29 @@ def entity_form(entity_name, pk=None):
 @app.route('/<entity_name>/save', methods=['POST'])
 def entity_save(entity_name):
     """Generic save endpoint for any entity"""
-    # Check if entity exists first
-    if entity_name not in _ENTITIES:
-        app.logger.error("entity_save: unknown entity %s", entity_name)
-        return "Unknown entity", 404
+    payload = request.form.to_dict()
     
-    # This is a placeholder - full implementation depends on repository.save
-    # For now, return 501 Not Implemented
-    app.logger.warning("entity_save called for %s but not fully implemented", entity_name)
-    return "Save operation not yet implemented", 501
+    ctx = generic_service.handle_save(_ENTITIES, entity_name, payload)
+    
+    if not ctx.get('ok'):
+        status = ctx.get('status', 500)
+        error = ctx.get('error')
+        
+        if status == 404:
+            # Unknown entity or record not found
+            app.logger.error("entity_save: %s", error)
+            return error or "Not found", 404
+        elif status == 400:
+            # Validation error - return form with errors
+            app.logger.warning("entity_save validation failed for %s: %s", entity_name, ctx.get('errors'))
+            return render_template('partials/entity.html', **ctx), 400
+        else:
+            # Server error
+            app.logger.error("entity_save failed for %s: %s", entity_name, error)
+            return error or "Save failed", status
+    
+    # Success - return detail partial
+    return render_template('partials/entity.html', **ctx), 200
 
 
 @app.route('/<entity_name>/actions/<action_name>', methods=['POST'])
