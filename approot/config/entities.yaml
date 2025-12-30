@@ -4,10 +4,12 @@ customer:
 
   list:
     columns:
+      - { name: id, label: ID, width: 100 }
       - { name: name, label: 氏名, width: 200 }
       - { name: email, label: メール, width: 300 }
+      - { name: age, label: 年齢, width: 180 }
       - { name: status, label: ステータス, width: 120 }
-    default_sort: name
+    default_sort: id
     page_size: 20
     actions:
       - { name: export_csv, label: CSV出力, endpoint: /customer/export }
@@ -18,6 +20,7 @@ customer:
         fields:
           - { name: name, label: 氏名, type: text }
           - { name: email, label: メール, type: email }
+          - { name: age, label: 年齢, type: number }
       - label: 詳細
         fields:
           - { name: status, label: ステータス, type: lookup, lookup: status }

@@ -2,8 +2,8 @@
 import logging
 import atexit
 from flask import Flask, render_template, request
-import db
-from services import entities_loader, generic_service
+from . import db
+from .services import entities_loader, generic_service
 from pathlib import Path
 
 # Basic logging setup so db.py logs show up on console
@@ -153,7 +153,7 @@ def lookup_search(lookup_name):
             app.logger.warning("No entity found for lookup: %s", lookup_name)
             results = []
         else:
-            from repositories import generic_repo
+            from .repositories import generic_repo
             results = generic_repo.search_lookup(entity, query, limit=limit)
         
         return render_template('components/lookup.html', 

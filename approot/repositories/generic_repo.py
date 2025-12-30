@@ -8,7 +8,7 @@ import logging
 import re
 from typing import Any, Dict, Iterable, List, Tuple
 
-from approot import db
+from .. import db
 
 logger = logging.getLogger(__name__)
 

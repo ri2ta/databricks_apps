@@ -7,8 +7,8 @@ from __future__ import annotations
 import logging
 from typing import Any, Dict, Mapping, Callable
 
-from approot.services import entities_loader
-from approot.repositories import generic_repo
+from . import entities_loader
+from ..repositories import generic_repo
 
 logger = logging.getLogger(__name__)
 
