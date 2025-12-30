@@ -41,17 +41,16 @@ def mock_db(monkeypatch):
     import sys
     from pathlib import Path
     
-    # Add approot to path
-    approot_path = str(Path(__file__).resolve().parents[1] / "approot")
-    if approot_path not in sys.path:
-        sys.path.insert(0, approot_path)
+    root_path = str(Path(__file__).resolve().parents[1])
+    if root_path not in sys.path:
+        sys.path.insert(0, root_path)
     
-    import db
+    from approot import db
     
     # Mock the connection pool functions
     monkeypatch.setattr(db, 'init_pool', lambda: None)
     monkeypatch.setattr(db, 'close_pool', lambda: None)
-    monkeypatch.setattr(db, 'get_customers', lambda: [])
+    monkeypatch.setattr(db, 'get_customers', lambda limit=100: [])
     monkeypatch.setattr(db, 'get_customer_detail', lambda customer_id: None)
 
 
@@ -80,8 +79,8 @@ def mock_entities_loader(monkeypatch):
                     {
                         "label": "Basic Info",
                         "fields": [
-                            {"name": "name", "label": "Name", "type": "text"},
-                            {"name": "email", "label": "Email", "type": "email"},
+                            {"name": "name", "label": "Name", "type": "text", "required": True},
+                            {"name": "email", "label": "Email", "type": "email", "required": True},
                         ],
                     }
                 ],
@@ -104,6 +103,13 @@ def mock_generic_repo(monkeypatch):
     """Mock generic_repo to return test data."""
     from approot.repositories import generic_repo
     
+    # In-memory store for testing
+    _store = {
+        1: {"id": 1, "name": "Alice", "email": "alice@example.com"},
+        2: {"id": 2, "name": "Bob", "email": "bob@example.com"},
+    }
+    _next_id = [3]  # Use list for mutability in closure
+    
     def mock_fetch_list(entity, page=1, page_size=None, sort=None):
         return [
             {"id": 1, "name": "Alice", "email": "alice@example.com"},
@@ -115,15 +121,35 @@ def mock_generic_repo(monkeypatch):
             return {"id": 1, "name": "Alice", "email": "alice@example.com"}
         return None
     
+    def mock_save(entity, payload):
+        """Mock save that returns saved record with id."""
+        pk_name = entity.get("primary_key", "id")
+        
+        if pk_name in payload and payload[pk_name]:
+            # Update existing
+            pk = int(payload[pk_name]) if isinstance(payload[pk_name], str) else payload[pk_name]
+            if pk not in _store:
+                raise ValueError(f"Record with {pk_name}={pk} not found")
+            _store[pk] = payload
+            return payload
+        else:
+            # Insert new
+            new_id = _next_id[0]
+            _next_id[0] += 1
+            payload[pk_name] = new_id
+            _store[new_id] = payload
+            return payload
+    
     monkeypatch.setattr(generic_repo, 'fetch_list', mock_fetch_list)
     monkeypatch.setattr(generic_repo, 'fetch_detail', mock_fetch_detail)
+    monkeypatch.setattr(generic_repo, 'save', mock_save)
 
 
 @pytest.fixture
 def status_entity(monkeypatch):
     """Provide a status entity in _ENTITIES and restore after use."""
     from copy import deepcopy
-    from app import _ENTITIES
+    from approot.app import _ENTITIES
 
     original = deepcopy(_ENTITIES)
     _ENTITIES['status'] = {
@@ -148,12 +174,12 @@ def client(mock_db, mock_entities_loader, mock_generic_repo):
     import sys
     from pathlib import Path
     
-    # Add approot to path for relative imports
-    approot_path = str(Path(__file__).resolve().parents[1] / "approot")
-    if approot_path not in sys.path:
-        sys.path.insert(0, approot_path)
+    # Ensure project root is in sys.path so approot can be imported as a package
+    root_path = str(Path(__file__).resolve().parents[1])
+    if root_path not in sys.path:
+        sys.path.insert(0, root_path)
     
-    from app import app
+    from approot.app import app
     
     app.config['TESTING'] = True
     
@@ -241,15 +267,15 @@ def test_entity_form_route_unknown_entity(client):
 # Task 5: Test /<entity>/save endpoint
 def test_entity_save_route(client, monkeypatch):
     """Task 5: POST /<entity>/save processes form data"""
-    # For now, save returns 501 as it's not fully implemented
-    # This test just verifies the route exists and handles the request
+    # Task 7: Save is now implemented
     response = client.post('/customer/save', data={
         'name': 'Charlie',
         'email': 'charlie@example.com',
     })
     
-    # Should return 501 (Not Implemented) for now
-    assert response.status_code == 501
+    # Should return 200 (success) now that save is implemented
+    assert response.status_code == 200
+    assert b'Charlie' in response.data
 
 
 def test_entity_save_route_unknown_entity(client):
@@ -286,12 +312,11 @@ def test_lookup_route(client, monkeypatch, status_entity):
     import sys
     from pathlib import Path
     
-    # Add approot to path
-    approot_path = str(Path(__file__).resolve().parents[1] / "approot")
-    if approot_path not in sys.path:
-        sys.path.insert(0, approot_path)
+    root_path = str(Path(__file__).resolve().parents[1])
+    if root_path not in sys.path:
+        sys.path.insert(0, root_path)
     
-    from repositories import generic_repo
+    from approot.repositories import generic_repo
     
     def mock_search_lookup(entity, query, limit=20):
         return [
@@ -312,12 +337,11 @@ def test_lookup_route_with_query(client, monkeypatch, status_entity):
     import sys
     from pathlib import Path
     
-    # Add approot to path
-    approot_path = str(Path(__file__).resolve().parents[1] / "approot")
-    if approot_path not in sys.path:
-        sys.path.insert(0, approot_path)
+    root_path = str(Path(__file__).resolve().parents[1])
+    if root_path not in sys.path:
+        sys.path.insert(0, root_path)
     
-    from repositories import generic_repo
+    from approot.repositories import generic_repo
     
     def mock_search_lookup(entity, query, limit=20):
         if query == 'act':
@@ -389,9 +413,10 @@ def test_entity_form_edit_with_invalid_id_type(client):
 
 def test_entity_save_without_data(client):
     """Task 6: Test save route with no form data"""
+    # Task 7: Save is now implemented - empty data triggers validation errors for required fields
     response = client.post('/customer/save', data={})
-    # Placeholder returns 501 until save is implemented
-    assert response.status_code == 501
+    # Should return 400 for validation errors (name and email are required)
+    assert response.status_code == 400
 
 
 def test_entity_save_with_invalid_entity(client):
@@ -403,8 +428,8 @@ def test_entity_save_with_invalid_entity(client):
 def test_entity_action_without_payload(client):
     """Task 6: Test action route without POST data"""
     response = client.post('/customer/actions/export_csv')
-    # Unknown action placeholder -> 501 (Not Implemented)
-    assert response.status_code == 501
+    # Action 'export_csv' is not defined in test entity -> 404
+    assert response.status_code == 404
 
 
 def test_entity_action_with_empty_action_name(client):
@@ -420,11 +445,11 @@ def test_lookup_route_with_very_long_query(client, monkeypatch, status_entity):
     import sys
     from pathlib import Path
     
-    approot_path = str(Path(__file__).resolve().parents[1] / "approot")
-    if approot_path not in sys.path:
-        sys.path.insert(0, approot_path)
+    root_path = str(Path(__file__).resolve().parents[1])
+    if root_path not in sys.path:
+        sys.path.insert(0, root_path)
     
-    from repositories import generic_repo
+    from approot.repositories import generic_repo
     
     def mock_search_lookup(entity, query, limit=20):
         return []
@@ -441,11 +466,11 @@ def test_lookup_route_with_missing_query_param(client, monkeypatch, status_entit
     import sys
     from pathlib import Path
     
-    approot_path = str(Path(__file__).resolve().parents[1] / "approot")
-    if approot_path not in sys.path:
-        sys.path.insert(0, approot_path)
+    root_path = str(Path(__file__).resolve().parents[1])
+    if root_path not in sys.path:
+        sys.path.insert(0, root_path)
     
-    from repositories import generic_repo
+    from approot.repositories import generic_repo
     
     def mock_search_lookup(entity, query, limit=20):
         return [{"id": "test", "name": "Test"}]
@@ -511,8 +536,9 @@ def test_entity_save_with_special_characters(client):
         'email': 'test+special@example.com',
     })
     
-    # Should handle special characters safely (returns 501 for now)
-    assert response.status_code in [200, 400, 501]
+    # Task 7: Save is now implemented - should succeed
+    assert response.status_code == 200
+    assert b"O'Brien" in response.data or b"O&#39;Brien" in response.data
 
 
 def test_route_with_trailing_slash(client):

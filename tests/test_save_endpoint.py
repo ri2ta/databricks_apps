@@ -36,26 +36,26 @@ def stub_requests_and_env(monkeypatch):
 
 
 @pytest.fixture
-def mock_db(monkeypatch):
+def save_test_mock_db(monkeypatch):
     """Mock db module to avoid actual DB connections."""
     import sys
     from pathlib import Path
     
-    approot_path = str(Path(__file__).resolve().parents[1] / "approot")
-    if approot_path not in sys.path:
-        sys.path.insert(0, approot_path)
+    root_path = str(Path(__file__).resolve().parents[1])
+    if root_path not in sys.path:
+        sys.path.insert(0, root_path)
     
-    import db
+    from approot import db
     
     monkeypatch.setattr(db, 'init_pool', lambda: None)
     monkeypatch.setattr(db, 'close_pool', lambda: None)
-    monkeypatch.setattr(db, 'get_customers', lambda: [])
+    monkeypatch.setattr(db, 'get_customers', lambda limit=100: [])
     monkeypatch.setattr(db, 'get_customer_detail', lambda customer_id: None)
 
 
 @pytest.fixture
-def mock_entities_loader(monkeypatch):
-    """Mock entities_loader to return test entity definitions."""
+def save_test_mock_entities_loader(monkeypatch):
+    """Mock entities_loader to return test entity definitions with required fields."""
     from approot.services import entities_loader
     
     test_entities = {
@@ -99,7 +99,7 @@ def mock_entities_loader(monkeypatch):
 
 
 @pytest.fixture
-def mock_generic_repo_with_save(monkeypatch):
+def save_test_mock_generic_repo(monkeypatch):
     """Mock generic_repo with save functionality."""
     from approot.repositories import generic_repo
     
@@ -142,7 +142,7 @@ def mock_generic_repo_with_save(monkeypatch):
 
 
 @pytest.fixture
-def client(mock_db, mock_entities_loader, mock_generic_repo_with_save):
+def client(save_test_mock_db, save_test_mock_entities_loader, save_test_mock_generic_repo):
     """Create Flask test client with mocked dependencies."""
     import sys
     from pathlib import Path
