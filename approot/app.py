@@ -38,6 +38,12 @@ else:
     _ENTITIES = _validation_result.entities
     app.logger.info("Loaded %d entities: %s", len(_ENTITIES), list(_ENTITIES.keys()))
 
+# Action handlers registry
+# Register custom action handlers here
+# Example: _ACTION_HANDLERS = {"export_csv": my_export_handler, "calc_points": calc_handler}
+_ACTION_HANDLERS = {}
+
+
 @app.route('/')
 def index():
     return render_template('layout.html')
@@ -130,19 +136,25 @@ def entity_save(entity_name):
 @app.route('/<entity_name>/actions/<action_name>', methods=['POST'])
 def entity_action(entity_name, action_name):
     """Generic action endpoint for any entity"""
-    payload = request.form.to_dict()
+    # Accept either form data or JSON payload
+    if request.is_json:
+        payload = request.get_json() or {}
+    else:
+        payload = request.form.to_dict()
     
-    # No handlers registered yet, but the service will dispatch
-    ctx = generic_service.handle_action(_ENTITIES, entity_name, action_name, payload, handlers=None)
+    # Call service with registered handlers
+    ctx = generic_service.handle_action(_ENTITIES, entity_name, action_name, payload, handlers=_ACTION_HANDLERS)
     
+    status = ctx.get('status', 500)
+
     if not ctx.get('ok'):
-        status = ctx.get('status', 500)
         error = ctx.get('error', 'Unknown error')
         app.logger.error("entity_action failed for %s/%s: %s", entity_name, action_name, error)
-        return error, status
+        # Return error template for HTMX friendliness
+        return render_template('partials/action_result.html', **ctx), status
     
-    # Return success message or redirect to list
-    return f"Action {action_name} executed successfully", 200
+    # Return partial template with action result
+    return render_template('partials/action_result.html', **ctx), status
 
 
 @app.route('/lookup/<lookup_name>')

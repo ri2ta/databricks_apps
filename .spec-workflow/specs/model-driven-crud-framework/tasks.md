@@ -49,7 +49,7 @@
   - _Requirements: 要件5, 要件7, 非機能(セキュリティ/信頼性/ユーザビリティ)
   - _Prompt: Implement the task for spec model-driven-crud-framework, first run spec-workflow-guide to get the workflow guide then implement the task: Role: Python service+repo developer | Task: TDD で save エンドポイントのテストを先に書き、repository.save + service.handle_save + フォームエラー描画を実装 | Restrictions: パラメータバインド必須、フィールド別エラーを部分テンプレートで返す、既存エンドポイント互換を壊さない | _Leverage: design.md, templates/components/form.html | _Requirements: 要件5/7 | Success: save 成功で detail 200、バリデーション失敗で 400 エラー付きフォーム、未知エンティティ/レコードで 404 を返す_
 
-- [ ] 8. カスタムアクションディスパッチを実装する（TDD）
+- [x] 8. カスタムアクションディスパッチを実装する（TDD）
   - Files: approot/services/generic_service.py; approot/app.py; テンプレート（必要ならアクション結果用スニペット）; テスト
   - 内容: `POST /<entity>/actions/<action>` のテストを先に追加し、定義なし 404、未登録ハンドラ 501、ハンドラ成功 200、例外 500 を検証。handle_action でハンドラ登録を受け取り、結果を部分テンプレートで返す。
   - _Leverage: design.md Generic Service/Flask Routes/Testing Strategy_

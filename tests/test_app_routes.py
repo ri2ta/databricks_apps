@@ -292,6 +292,8 @@ def test_entity_action_route(client):
     # May return 501 if handler not registered, or 200 if implemented
     # At minimum, should not crash
     assert response.status_code in [200, 404, 501]
+    # Should return HTML fragment even on error
+    assert b'<div' in response.data or response.status_code == 404
 
 
 def test_entity_action_route_unknown_entity(client):
@@ -304,6 +306,139 @@ def test_entity_action_route_unknown_action(client):
     """Task 5: POST /<entity>/actions/<action> returns 404 for unknown action"""
     response = client.post('/customer/actions/unknown_action')
     assert response.status_code == 404
+    # Should still render template for HTMX
+    assert b'<div' in response.data
+
+
+# Task 8: Comprehensive action dispatch tests
+def test_entity_action_with_registered_handler_returns_200(client, monkeypatch):
+    """Task 8: POST /<entity>/actions/<action> returns 200 when handler exists and succeeds"""
+    import sys
+    from pathlib import Path
+    
+    root_path = str(Path(__file__).resolve().parents[1])
+    if root_path not in sys.path:
+        sys.path.insert(0, root_path)
+    
+    from approot import app
+    
+    # Register a test handler
+    def test_handler(entity, payload):
+        return {"message": "Handler executed", "data": payload}
+    
+    # Add action to entity definition
+    original_handlers = app._ACTION_HANDLERS.copy()
+    app._ACTION_HANDLERS['save'] = test_handler
+    
+    try:
+        response = client.post('/customer/actions/save', data={'field': 'value'})
+        
+        assert response.status_code == 200
+        assert b'Action completed successfully' in response.data or b'Handler executed' in response.data
+    finally:
+        app._ACTION_HANDLERS.clear()
+        app._ACTION_HANDLERS.update(original_handlers)
+
+
+def test_entity_action_with_registered_handler_json_payload(client, monkeypatch):
+    """Task 8: POST /<entity>/actions/<action> accepts JSON payload"""
+    import sys
+    from pathlib import Path
+    
+    root_path = str(Path(__file__).resolve().parents[1])
+    if root_path not in sys.path:
+        sys.path.insert(0, root_path)
+    
+    from approot import app
+    
+    # Register a test handler
+    def test_handler(entity, payload):
+        return {"received": payload}
+    
+    original_handlers = app._ACTION_HANDLERS.copy()
+    app._ACTION_HANDLERS['save'] = test_handler
+    
+    try:
+        response = client.post(
+            '/customer/actions/save',
+            json={'field': 'value', 'number': 42},
+            content_type='application/json'
+        )
+        
+        assert response.status_code == 200
+        assert b'Action completed successfully' in response.data
+    finally:
+        app._ACTION_HANDLERS.clear()
+        app._ACTION_HANDLERS.update(original_handlers)
+
+
+def test_entity_action_missing_handler_returns_501(client):
+    """Task 8: POST /<entity>/actions/<action> returns 501 when handler not registered"""
+    # 'save' action exists in customer entity but no handler registered
+    response = client.post('/customer/actions/save', data={})
+    
+    assert response.status_code == 501
+    assert b'handler' in response.data.lower() or b'not registered' in response.data.lower()
+    assert b'<div' in response.data
+
+
+def test_entity_action_handler_exception_returns_500(client, monkeypatch):
+    """Task 8: POST /<entity>/actions/<action> returns 500 when handler raises exception"""
+    import sys
+    from pathlib import Path
+    
+    root_path = str(Path(__file__).resolve().parents[1])
+    if root_path not in sys.path:
+        sys.path.insert(0, root_path)
+    
+    from approot import app
+    
+    # Register a failing handler
+    def failing_handler(entity, payload):
+        raise RuntimeError("Handler error")
+    
+    original_handlers = app._ACTION_HANDLERS.copy()
+    app._ACTION_HANDLERS['save'] = failing_handler
+    
+    try:
+        response = client.post('/customer/actions/save', data={'field': 'value'})
+        
+        assert response.status_code == 500
+        assert b'error' in response.data.lower() or b'handler error' in response.data.lower()
+        assert b'<div' in response.data
+    finally:
+        app._ACTION_HANDLERS.clear()
+        app._ACTION_HANDLERS.update(original_handlers)
+
+
+def test_entity_action_returns_template_not_plain_text(client, monkeypatch):
+    """Task 8: POST /<entity>/actions/<action> returns HTML template, not plain text"""
+    import sys
+    from pathlib import Path
+    
+    root_path = str(Path(__file__).resolve().parents[1])
+    if root_path not in sys.path:
+        sys.path.insert(0, root_path)
+    
+    from approot import app
+    
+    # Register a test handler
+    def test_handler(entity, payload):
+        return {"status": "ok"}
+    
+    original_handlers = app._ACTION_HANDLERS.copy()
+    app._ACTION_HANDLERS['save'] = test_handler
+    
+    try:
+        response = client.post('/customer/actions/save', data={})
+        
+        assert response.status_code == 200
+        # Should contain HTML alert/div structure, not plain "Action ... executed successfully"
+        assert b'<div' in response.data or b'alert' in response.data
+        assert b'Action {action_name} executed successfully' not in response.data
+    finally:
+        app._ACTION_HANDLERS.clear()
+        app._ACTION_HANDLERS.update(original_handlers)
 
 
 # Task 5: Test /lookup/<lookup_name> endpoint
