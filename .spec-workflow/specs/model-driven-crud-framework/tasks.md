@@ -42,7 +42,7 @@
   - _Requirements: 要件1-4, 非機能(信頼性/パフォーマンス)
   - _Prompt: Implement the task for spec model-driven-crud-framework, first run spec-workflow-guide to get the workflow guide then implement the task: Role: Python QA/pytest エンジニア | Task: 先行テストを補強し、境界ケースとエラー系を追加して回帰を防ぐ | Restrictions: 外部接続はモック/スタブ化、主要要素の HTML を assert、パフォーマンスは緩やかなしきい値で確認 | _Leverage: pytest, FlaskClient, design.md | _Requirements: 要件1-4, 非機能(信頼性/パフォーマンス) | Success: 追加テストがカバレッジを向上し、回帰を検知できる状態になる_
 
-- [ ] 7. 汎用保存パイプラインを実装する（TDD）
+- [x] 7. 汎用保存パイプラインを実装する（TDD）
   - Files: approot/repositories/generic_repo.py; approot/services/generic_service.py; approot/app.py; templates/components/form.html (エラー表示拡張); 新規/既存テスト
   - 内容: 先に `POST /<entity>/save` の成功/バリデーションエラー/404/500 経路をテストし、repository.save で insert/update を実装。service.handle_save で入力検証・pk 反映を行い、成功時は detail 断片、失敗時はフォーム断片にフィールドエラーを埋め込む。SQL はパラメータバインドを徹底。
   - _Leverage: design.md Generic Repository/Service/Flask Routes/Testing Strategy, existing entity templates_

@@ -5,6 +5,7 @@
     
     {% for field in section.fields %}
       {% set value = record[field.name] if record and field.name in record else '' %}
+      {% set field_error = errors[field.name] if errors and field.name in errors else None %}
       
       {% if field.type == 'text' %}
         {% include 'components/field_types/text.html' %}

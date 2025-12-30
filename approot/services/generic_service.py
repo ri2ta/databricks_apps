@@ -207,3 +207,121 @@ def handle_action(
         "result": result,
         "mode": "action",
     }
+
+
+def _validate_field(field: Dict[str, Any], value: Any) -> str | None:
+    """
+    Validate a single field value. Returns error message if invalid, None if valid.
+    """
+    field_name = field.get("name", "")
+    field_type = field.get("type", "text")
+    required = field.get("required", False)
+    
+    # Check required
+    if required and (value is None or value == ""):
+        return f"{field.get('label', field_name)} is required"
+    
+    # Skip validation if empty and not required
+    if value is None or value == "":
+        return None
+    
+    # Type-specific validation
+    if field_type == "email":
+        # Simple email validation
+        if "@" not in str(value) or "." not in str(value).split("@")[-1]:
+            return f"{field.get('label', field_name)} must be a valid email address"
+    
+    return None
+
+
+def handle_save(
+    entities: Dict[str, Dict[str, Any]],
+    entity_name: str,
+    payload: Dict[str, Any],
+) -> Dict[str, Any]:
+    """
+    Handle save operation (insert or update).
+    Validates input, applies primary key for updates, calls repository.save.
+    Returns context with errors for validation failures, or success context.
+    """
+    entity = _get_entity(entities, entity_name)
+    if not entity:
+        return _missing_entity(entity_name, mode="edit")
+    
+    pk_name = entity.get("primary_key", "id")
+    is_update = pk_name in payload and payload.get(pk_name) not in (None, "", "0", 0)
+    mode = "edit" if is_update else "create"
+    
+    # Validate inputs
+    errors = {}
+    form_cfg = entity.get("form", {})
+    
+    for section in form_cfg.get("sections", []):
+        for field in section.get("fields", []):
+            field_name = field.get("name")
+            if not field_name:
+                continue
+            
+            value = payload.get(field_name)
+            error_msg = _validate_field(field, value)
+            if error_msg:
+                errors[field_name] = error_msg
+    
+    # If there are validation errors, return form context with errors
+    if errors:
+        return {
+            "ok": False,
+            "status": 400,
+            "entity": entity,
+            "record": payload,
+            "mode": mode,
+            "form": form_cfg,
+            "errors": errors,
+            "actions": form_cfg.get("actions", []),
+        }
+    
+    # Convert string id to int if needed
+    if is_update and pk_name in payload:
+        try:
+            payload[pk_name] = int(payload[pk_name])
+        except (ValueError, TypeError):
+            pass
+    
+    # Whitelist payload fields to avoid unknown columns reaching the repository
+    allowed_fields = {pk_name}
+    for section in form_cfg.get("sections", []):
+        for field in section.get("fields", []):
+            name = field.get("name")
+            if name:
+                allowed_fields.add(name)
+
+    filtered_payload = {k: v for k, v in payload.items() if k in allowed_fields}
+
+    # Try to save
+    try:
+        saved_record = generic_repo.save(entity, filtered_payload)
+    except ValueError as exc:
+        # Record not found for update
+        logger.warning("handle_save record not found for entity=%s: %s", entity_name, exc)
+        return {
+            "ok": False,
+            "status": 404,
+            "error": str(exc),
+            "entity": entity,
+            "record": filtered_payload,
+            "mode": mode,
+        }
+    except Exception as exc:
+        # Server error
+        logger.exception("handle_save failed for entity=%s", entity_name)
+        return _error_context(entity, mode=mode, exc=exc)
+    
+    # Success - return detail context
+    return {
+        "ok": True,
+        "status": 200,
+        "entity": entity,
+        "record": saved_record,
+        "mode": "view",
+        "actions": entity.get("form", {}).get("actions", []),
+    }
