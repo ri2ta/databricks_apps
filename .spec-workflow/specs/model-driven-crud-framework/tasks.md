@@ -56,7 +56,7 @@
   - _Requirements: 要件6, 非機能(セキュリティ/信頼性)
   - _Prompt: Implement the task for spec model-driven-crud-framework, first run spec-workflow-guide to get the workflow guide then implement the task: Role: Python service layer developer | Task: TDD で actions エンドポイントの正常系/異常系を網羅し、ハンドラ呼び出しとエラー応答を実装 | Restrictions: 未登録ハンドラは 501、例外は握って 500、エラーメッセージは簡潔 | _Leverage: design.md | _Requirements: 要件6 | Success: テストが通り、アクション定義/登録の有無に応じたステータスで部分レスポンスが返る_
 
-- [-] 9. YAML バリデーションエラーの UI 通知を実装する
+- [x] 9. YAML バリデーションエラーの UI 通知を実装する
   - Files: approot/app.py (エンティティロード結果の扱い), templates/layout.html もしくは base/partials でバナー追加, tests/test_htmx_endpoints.py など
   - 内容: entities_loader の検証結果が失敗した場合、ログを残しつつレイアウトに簡潔なバナー/メッセージを表示する実装を追加。存在しないエンティティ要求時も 404/500 の部分テンプレートを返すことをテストで確認。
   - _Leverage: design.md YAML Error Handling, existing layout/partials_
