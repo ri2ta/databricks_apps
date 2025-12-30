@@ -145,14 +145,16 @@ def entity_action(entity_name, action_name):
     # Call service with registered handlers
     ctx = generic_service.handle_action(_ENTITIES, entity_name, action_name, payload, handlers=_ACTION_HANDLERS)
     
+    status = ctx.get('status', 500)
+
     if not ctx.get('ok'):
-        status = ctx.get('status', 500)
         error = ctx.get('error', 'Unknown error')
         app.logger.error("entity_action failed for %s/%s: %s", entity_name, action_name, error)
-        return error, status
+        # Return error template for HTMX friendliness
+        return render_template('partials/action_result.html', **ctx), status
     
     # Return partial template with action result
-    return render_template('partials/action_result.html', **ctx), 200
+    return render_template('partials/action_result.html', **ctx), status
 
 
 @app.route('/lookup/<lookup_name>')

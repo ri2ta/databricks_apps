@@ -292,6 +292,8 @@ def test_entity_action_route(client):
     # May return 501 if handler not registered, or 200 if implemented
     # At minimum, should not crash
     assert response.status_code in [200, 404, 501]
+    # Should return HTML fragment even on error
+    assert b'<div' in response.data or response.status_code == 404
 
 
 def test_entity_action_route_unknown_entity(client):
@@ -304,6 +306,8 @@ def test_entity_action_route_unknown_action(client):
     """Task 5: POST /<entity>/actions/<action> returns 404 for unknown action"""
     response = client.post('/customer/actions/unknown_action')
     assert response.status_code == 404
+    # Should still render template for HTMX
+    assert b'<div' in response.data
 
 
 # Task 8: Comprehensive action dispatch tests
@@ -375,6 +379,7 @@ def test_entity_action_missing_handler_returns_501(client):
     
     assert response.status_code == 501
     assert b'handler' in response.data.lower() or b'not registered' in response.data.lower()
+    assert b'<div' in response.data
 
 
 def test_entity_action_handler_exception_returns_500(client, monkeypatch):
@@ -400,6 +405,7 @@ def test_entity_action_handler_exception_returns_500(client, monkeypatch):
         
         assert response.status_code == 500
         assert b'error' in response.data.lower() or b'handler error' in response.data.lower()
+        assert b'<div' in response.data
     finally:
         app._ACTION_HANDLERS.clear()
         app._ACTION_HANDLERS.update(original_handlers)

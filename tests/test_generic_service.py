@@ -221,6 +221,47 @@ def test_handle_action_missing_handler(monkeypatch, entities):
     assert "handler" in ctx["error"].lower()
 
 
+# Task 8: Additional service-level action dispatch tests
+
+
+def test_handle_action_returns_error_context_with_template_fields(monkeypatch, entities):
+    """Task 8: ensure error context carries ok/status/error for template rendering"""
+    from approot.services import generic_service
+
+    ctx = generic_service.handle_action(
+        entities,
+        entity_name="customer",
+        action_name="unknown_action",
+        payload={}
+    )
+
+    assert ctx["ok"] is False
+    assert ctx["status"] == 404
+    assert "unknown action" in ctx["error"].lower()
+
+
+def test_handle_action_payload_defaults_to_empty_dict(monkeypatch, entities):
+    """Task 8: None payload should be converted to {} and handed to handler"""
+    from approot.services import generic_service
+
+    called = {}
+
+    def handler(entity, payload):
+        called["payload"] = payload
+        return {"ok": True}
+
+    ctx = generic_service.handle_action(
+        entities,
+        entity_name="customer",
+        action_name="calc_points",
+        payload=None,
+        handlers={"calc_points": handler},
+    )
+
+    assert ctx["ok"] is True
+    assert called["payload"] == {}
+
+
 def test_render_list_handles_repo_error(monkeypatch, entities):
     from approot.services import generic_service
 
