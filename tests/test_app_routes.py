@@ -360,13 +360,6 @@ def test_existing_index_route_still_works(client):
     response = client.get('/')
     assert response.status_code == 200
 
-
-def test_existing_list_route_still_works(client):
-    """Task 5: Ensure existing /list route is not affected"""
-    response = client.get('/list')
-    assert response.status_code == 200
-
-
 def test_existing_detail_route_still_works(client):
     """Task 5: Ensure existing /detail/<id> route is not affected"""
     # This will return 404 as mock returns None, but route should exist

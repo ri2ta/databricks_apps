@@ -42,11 +42,6 @@ else:
 def index():
     return render_template('layout.html')
 
-@app.route('/list')
-def list_view():
-    customers = db.get_customers()
-    return render_template('partials/list.html', customers=customers)
-
 @app.route('/detail/<int:customer_id>')
 def detail_view(customer_id):
     customer = db.get_customer_detail(customer_id=customer_id)

@@ -287,9 +287,19 @@ def handle_save(
         except (ValueError, TypeError):
             pass
     
+    # Whitelist payload fields to avoid unknown columns reaching the repository
+    allowed_fields = {pk_name}
+    for section in form_cfg.get("sections", []):
+        for field in section.get("fields", []):
+            name = field.get("name")
+            if name:
+                allowed_fields.add(name)
+
+    filtered_payload = {k: v for k, v in payload.items() if k in allowed_fields}
+
     # Try to save
     try:
-        saved_record = generic_repo.save(entity, payload)
+        saved_record = generic_repo.save(entity, filtered_payload)
     except ValueError as exc:
         # Record not found for update
         logger.warning("handle_save record not found for entity=%s: %s", entity_name, exc)
@@ -298,7 +308,7 @@ def handle_save(
             "status": 404,
             "error": str(exc),
             "entity": entity,
-            "record": payload,
+            "record": filtered_payload,
             "mode": mode,
         }
     except Exception as exc:
