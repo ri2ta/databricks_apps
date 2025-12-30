@@ -31,9 +31,11 @@ atexit.register(db.close_pool)
 # Load entity definitions once at startup
 _entities_path = Path(__file__).parent / "config" / "entities.yaml"
 _validation_result = entities_loader.load_entities(str(_entities_path))
+_ENTITY_LOAD_ERROR = False
 if not _validation_result.success:
     app.logger.error("Failed to load entities: %s", _validation_result.errors)
     _ENTITIES = {}
+    _ENTITY_LOAD_ERROR = True
 else:
     _ENTITIES = _validation_result.entities
     app.logger.info("Loaded %d entities: %s", len(_ENTITIES), list(_ENTITIES.keys()))
@@ -46,7 +48,7 @@ _ACTION_HANDLERS = {}
 
 @app.route('/')
 def index():
-    return render_template('layout.html')
+    return render_template('layout.html', entity_load_error=_ENTITY_LOAD_ERROR)
 
 @app.route('/detail/<int:customer_id>')
 def detail_view(customer_id):
@@ -71,7 +73,10 @@ def entity_list(entity_name):
         status = ctx.get('status', 500)
         error = ctx.get('error', 'Unknown error')
         app.logger.error("entity_list failed for %s: %s", entity_name, error)
-        return error, status
+        # Return HTMX-friendly error partial
+        if status == 404:
+            return render_template('partials/error.html', title="エンティティが見つかりません", message=error), 404
+        return render_template('partials/error.html', title="エラー", message=error), status
     
     return render_template('partials/list.html', **ctx)
 
@@ -85,7 +90,10 @@ def entity_detail(entity_name, pk):
         status = ctx.get('status', 500)
         error = ctx.get('error', 'Unknown error')
         app.logger.error("entity_detail failed for %s/%s: %s", entity_name, pk, error)
-        return error, status
+        # Return HTMX-friendly error partial
+        if status == 404:
+            return render_template('partials/error.html', title="レコードが見つかりません", message=error), 404
+        return render_template('partials/error.html', title="エラー", message=error), status
     
     return render_template('partials/entity.html', **ctx)
 
@@ -100,7 +108,10 @@ def entity_form(entity_name, pk=None):
         status = ctx.get('status', 500)
         error = ctx.get('error', 'Unknown error')
         app.logger.error("entity_form failed for %s/%s: %s", entity_name, pk, error)
-        return error, status
+        # Return HTMX-friendly error partial
+        if status == 404:
+            return render_template('partials/error.html', title="エンティティまたはレコードが見つかりません", message=error), 404
+        return render_template('partials/error.html', title="エラー", message=error), status
     
     return render_template('partials/entity.html', **ctx)
 
@@ -117,17 +128,17 @@ def entity_save(entity_name):
         error = ctx.get('error')
         
         if status == 404:
-            # Unknown entity or record not found
+            # Unknown entity or record not found - return HTMX-friendly error
             app.logger.error("entity_save: %s", error)
-            return error or "Not found", 404
+            return render_template('partials/error.html', title="エンティティまたはレコードが見つかりません", message=error or "Not found"), 404
         elif status == 400:
             # Validation error - return form with errors
             app.logger.warning("entity_save validation failed for %s: %s", entity_name, ctx.get('errors'))
             return render_template('partials/entity.html', **ctx), 400
         else:
-            # Server error
+            # Server error - return HTMX-friendly error
             app.logger.error("entity_save failed for %s: %s", entity_name, error)
-            return error or "Save failed", status
+            return render_template('partials/error.html', title="保存エラー", message=error or "Save failed"), status
     
     # Success - return detail partial
     return render_template('partials/entity.html', **ctx), 200
@@ -183,4 +194,4 @@ def lookup_search(lookup_name):
                              results=results)
     except Exception as exc:
         app.logger.exception("lookup_search failed for %s", lookup_name)
-        return f"Lookup failed: {str(exc)}", 500
+        return render_template('partials/error.html', title="検索エラー", message=f"Lookup failed: {str(exc)}"), 500

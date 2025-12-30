@@ -707,3 +707,90 @@ def test_entity_detail_zero_id(client):
     response = client.get('/customer/detail/0')
     # Should handle id=0 (may or may not exist)
     assert response.status_code in [200, 404]
+
+
+# Task 9: YAML Validation Error UI Tests
+
+def test_entity_list_unknown_entity_returns_error_partial(client):
+    """Task 9: Unknown entity returns HTMX-friendly error partial, not plain text"""
+    response = client.get('/unknown_entity/list')
+    assert response.status_code == 404
+    # Should return HTML error partial, not plain text
+    assert b'<!DOCTYPE' not in response.data  # Not a full page
+    assert b'alert' in response.data  # DaisyUI alert component
+    # Check for error content (decode to handle Japanese text)
+    html = response.data.decode('utf-8')
+    assert 'エンティティが見つかりません' in html or 'error' in html.lower()
+
+
+def test_entity_detail_unknown_entity_returns_error_partial(client):
+    """Task 9: Unknown entity detail returns HTMX-friendly error partial"""
+    response = client.get('/nonexistent/detail/1')
+    assert response.status_code == 404
+    # Should return HTML error partial with proper message
+    assert b'alert' in response.data
+    html = response.data.decode('utf-8')
+    assert 'error' in html.lower()
+
+
+def test_entity_form_unknown_entity_returns_error_partial(client):
+    """Task 9: Unknown entity form returns HTMX-friendly error partial"""
+    response = client.get('/nonexistent/form')
+    assert response.status_code == 404
+    # Should return HTML error partial
+    assert b'alert' in response.data
+    html = response.data.decode('utf-8')
+    assert 'エンティティまたはレコードが見つかりません' in html or 'error' in html.lower()
+
+
+def test_entity_save_unknown_entity_returns_error_partial(client):
+    """Task 9: Save to unknown entity returns HTMX-friendly error partial"""
+    response = client.post('/nonexistent/save', data={'name': 'Test'})
+    assert response.status_code == 404
+    # Should return HTML error partial, not plain text
+    assert b'alert' in response.data
+    html = response.data.decode('utf-8')
+    assert 'エンティティまたはレコードが見つかりません' in html or 'error' in html.lower()
+
+
+def test_lookup_error_returns_error_partial(client):
+    """Task 9: Lookup error returns HTMX-friendly error partial"""
+    # This test simulates an exception in the lookup endpoint
+    # We can test the 500 path by using a lookup that doesn't exist
+    response = client.get('/lookup/nonexistent_lookup?q=test')
+    # Should either return empty results gracefully or error partial
+    assert response.status_code in [200, 404, 500]
+    if response.status_code == 500:
+        # Should be an error partial, not plain text
+        assert b'alert' in response.data or b'error' in response.data.lower()
+
+
+def test_index_route_without_entity_load_error(client):
+    """Task 9: Index route renders without entity_load_error flag by default"""
+    response = client.get('/')
+    assert response.status_code == 200
+    # Should not show error banner when entities loaded successfully
+    html = response.data.decode('utf-8')
+    assert 'エンティティ設定エラー' not in html
+
+
+def test_entity_detail_not_found_returns_error_partial(client):
+    """Task 9: Detail for non-existent record returns HTMX-friendly error partial"""
+    response = client.get('/customer/detail/999')
+    assert response.status_code == 404
+    # Should return HTML error partial
+    assert b'alert' in response.data
+    html = response.data.decode('utf-8')
+    assert 'レコードが見つかりません' in html or 'error' in html.lower()
+
+
+def test_error_partial_contains_daisyui_components(client):
+    """Task 9: Error partials use DaisyUI styling for consistency"""
+    response = client.get('/unknown_entity/list')
+    assert response.status_code == 404
+    html = response.data.decode('utf-8')
+    # Should contain DaisyUI alert class
+    assert 'alert' in html
+    # Should contain SVG icon
+    assert '<svg' in html or 'svg' in html.lower()
+

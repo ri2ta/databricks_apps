@@ -145,6 +145,7 @@ def save_test_mock_generic_repo(monkeypatch):
 def client(save_test_mock_db, save_test_mock_entities_loader, save_test_mock_generic_repo):
     """Create Flask test client with mocked dependencies."""
     import sys
+    import importlib
     from pathlib import Path
     
     # Ensure project root is in sys.path so approot can be imported as a package
@@ -152,7 +153,10 @@ def client(save_test_mock_db, save_test_mock_entities_loader, save_test_mock_gen
     if root_path not in sys.path:
         sys.path.insert(0, root_path)
     
-    from approot.app import app
+    # Reload app module to pick up mocked entities_loader
+    from approot import app as app_module
+    importlib.reload(app_module)
+    app = app_module.app
     
     app.config['TESTING'] = True
     
