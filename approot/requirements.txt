@@ -4,3 +4,4 @@ python-dotenv
 requests
 pyyaml
 pytest
+sqlalchemy>=2.0.0

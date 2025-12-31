@@ -42,32 +42,12 @@ class DummyConnection:
 
 
 @pytest.fixture(autouse=True)
-def stub_requests(monkeypatch):
-    """Stub requests module so approot.db import succeeds without network deps."""
-    class _Resp:
-        def raise_for_status(self):
-            return None
+def stub_db_deps(monkeypatch):
+    """Stub db.py dependencies so tests can run without real database."""
+    # Set SQLAlchemy env vars for new db.py
+    monkeypatch.setenv("SQLALCHEMY_DATABASE_URL", "sqlite:///:memory:")
+    monkeypatch.setenv("DB_POOL_SIZE", "5")
 
-        def json(self):
-            return {"access_token": "dummy"}
-
-    def fake_post(*args, **kwargs):
-        return _Resp()
-
-    requests_stub = types.SimpleNamespace(post=fake_post)
-    monkeypatch.setitem(sys.modules, "requests", requests_stub)
-
-    # Stub databricks.sql module required by approot.db
-    sql_stub = types.SimpleNamespace(connect=lambda **kwargs: None)
-    databricks_stub = types.SimpleNamespace(sql=sql_stub)
-    monkeypatch.setitem(sys.modules, "databricks", databricks_stub)
-    monkeypatch.setitem(sys.modules, "databricks.sql", sql_stub)
-
-    # Required env vars for approot.db import
-    monkeypatch.setenv("DATABRICKS_SERVER_HOSTNAME", "dummy-host")
-    monkeypatch.setenv("DATABRICKS_HTTP_PATH", "/dummy")
-    monkeypatch.setenv("DATABRICKS_CLIENT_ID", "dummy-id")
-    monkeypatch.setenv("DATABRICKS_CLIENT_SECRET", "dummy-secret")
 
 @pytest.fixture
 def entity_cfg():

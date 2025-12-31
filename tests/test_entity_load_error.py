@@ -11,27 +11,9 @@ from pathlib import Path
 @pytest.fixture(autouse=True)
 def stub_requests_and_env(monkeypatch):
     """Stub network/databricks deps so approot modules import cleanly."""
-    class _Resp:
-        def raise_for_status(self):
-            return None
-        def json(self):
-            return {"access_token": "dummy"}
-
-    def fake_post(*args, **kwargs):
-        return _Resp()
-
-    requests_stub = types.SimpleNamespace(post=fake_post)
-    monkeypatch.setitem(sys.modules, "requests", requests_stub)
-
-    sql_stub = types.SimpleNamespace(connect=lambda **kwargs: None)
-    databricks_stub = types.SimpleNamespace(sql=sql_stub)
-    monkeypatch.setitem(sys.modules, "databricks", databricks_stub)
-    monkeypatch.setitem(sys.modules, "databricks.sql", sql_stub)
-
-    monkeypatch.setenv("DATABRICKS_SERVER_HOSTNAME", "dummy-host")
-    monkeypatch.setenv("DATABRICKS_HTTP_PATH", "/dummy")
-    monkeypatch.setenv("DATABRICKS_CLIENT_ID", "dummy-id")
-    monkeypatch.setenv("DATABRICKS_CLIENT_SECRET", "dummy-secret")
+    # Set SQLAlchemy env vars for new db.py
+    monkeypatch.setenv("SQLALCHEMY_DATABASE_URL", "sqlite:///:memory:")
+    monkeypatch.setenv("DB_POOL_SIZE", "5")
 
 
 def test_entity_load_error_shows_banner_in_layout(monkeypatch):
