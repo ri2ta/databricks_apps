@@ -1,103 +1,103 @@
 import os
-import requests
-import threading
-import queue
 import logging
-from databricks import sql
+import threading
+from sqlalchemy import create_engine, event
+from sqlalchemy.orm import sessionmaker, Session
+from sqlalchemy.pool import QueuePool
 
-# 環境変数
-HOST = os.environ["DATABRICKS_SERVER_HOSTNAME"]      # 例: "dbc-xxxx.cloud.databricks.com"
-HTTP_PATH = os.environ["DATABRICKS_HTTP_PATH"]
-CLIENT_ID = os.environ["DATABRICKS_CLIENT_ID"]
-CLIENT_SECRET = os.environ["DATABRICKS_CLIENT_SECRET"]
-
-# プール設定（環境変数で上書き可能）
-POOL_SIZE = int(os.environ.get("DB_POOL_SIZE", "5"))
-
-# モジュールレベルのプールとロック
-_pool = None  # type: queue.Queue
+# モジュールレベルのエンジン、セッションファクトリ、ロック
+_engine = None
+_SessionFactory = None
 _pool_lock = threading.Lock()
 _initialized = False
 logger = logging.getLogger(__name__)
 
-
-def get_dbx_token():
-    token_url = f"https://{HOST}/oidc/v1/token"
-    resp = requests.post(
-        token_url,
-        data={"grant_type": "client_credentials", "scope": "all-apis"},
-        auth=(CLIENT_ID, CLIENT_SECRET),
-        timeout=10,
-    )
-    resp.raise_for_status()
-    return resp.json()["access_token"]
+# DSN と プール設定を環境変数から読み取る
+# SQLALCHEMY_DATABASE_URL は必須、なければ KeyError でフェイルファスト
+DATABASE_URL = os.environ["SQLALCHEMY_DATABASE_URL"]
+POOL_SIZE = int(os.environ.get("DB_POOL_SIZE", "5"))
+MAX_OVERFLOW = int(os.environ.get("DB_MAX_OVERFLOW", "10"))
+POOL_TIMEOUT = int(os.environ.get("DB_POOL_TIMEOUT", "30"))
 
 
-def _create_connection():
-    access_token = get_dbx_token()
-    return sql.connect(
-        server_hostname=HOST,
-        http_path=HTTP_PATH,
-        access_token=access_token,
-    )
+def get_engine():
+    """SQLAlchemy エンジンを取得します。プール未初期化なら None を返します。"""
+    global _engine
+    return _engine
+
+
+def get_session() -> Session:
+    """SQLAlchemy Session を取得します。プール未初期化なら init_pool を呼び出します。"""
+    global _SessionFactory, _initialized
+    if not _initialized:
+        init_pool()
+    return _SessionFactory()
 
 
 def init_pool(size: int = POOL_SIZE):
     """コネクションプールを初期化します。複数回呼ばれても安全（最初の1回のみ実行）。"""
-    global _pool, _initialized
+    global _engine, _SessionFactory, _initialized
     with _pool_lock:
         if _initialized:
             return
-        logger.info("initializing pool size=%s", size)
-        q = queue.Queue(maxsize=size)
-        for _ in range(size):
-            conn = _create_connection()
-            q.put(conn)
-        _pool = q
+        logger.info("initializing SQLAlchemy engine with pool_size=%s, max_overflow=%s, pool_timeout=%s",
+                    size, MAX_OVERFLOW, POOL_TIMEOUT)
+        
+        # SQLAlchemy 2.x エンジンを作成（QueuePool をデフォルトで使用）
+        _engine = create_engine(
+            DATABASE_URL,
+            poolclass=QueuePool,
+            pool_size=size,
+            max_overflow=MAX_OVERFLOW,
+            pool_timeout=POOL_TIMEOUT,
+            pool_pre_ping=True,  # 接続の健全性チェック
+            echo=False,
+        )
+        
+        # Session ファクトリを作成
+        _SessionFactory = sessionmaker(bind=_engine, expire_on_commit=False)
+        
         _initialized = True
+        logger.info("SQLAlchemy engine initialized successfully")
 
 
 def get_connection(timeout: float | None = None):
-    """プールからコネクションを取得します。プール未初期化なら初期化します。
-    タイムアウト時は一時接続を返します（フォールバック）。"""
-    global _pool, _initialized
+    """プールから raw DBAPI コネクションを取得します。プール未初期化なら初期化します。
+    generic_repo との互換性のため、cursor() メソッドを持つ DBAPI 接続を返します。"""
+    global _engine, _initialized
     if not _initialized:
         init_pool()
-    try:
-        return _pool.get(timeout=timeout)
-    except Exception:
-        return _create_connection()
+    
+    # SQLAlchemy の raw connection を取得
+    # これは DBAPI connection のラッパーで cursor() メソッドを持つ
+    return _engine.raw_connection()
 
 
 def release_connection(conn):
-    """コネクションをプールに戻す。プールが満杯かエラー時はクローズする。"""
-    global _pool, _initialized
+    """コネクションをプールに戻す（クローズすることで SQLAlchemy プールに返却）。"""
     try:
-        if _initialized and _pool is not None and _pool.qsize() < _pool.maxsize:
-            _pool.put(conn)
-        else:
-            conn.close()
-    except Exception:
-        try:
-            conn.close()
-        except Exception:
-            pass
+        conn.close()
+    except Exception as e:
+        logger.warning("Error releasing connection: %s", e)
 
 
 def close_pool():
     """プール内の接続を全てクローズし、初期化状態をリセットする。"""
-    global _pool, _initialized
+    global _engine, _SessionFactory, _initialized
     with _pool_lock:
-        if not _initialized or _pool is None:
+        if not _initialized:
             return
-        while not _pool.empty():
-            try:
-                conn = _pool.get_nowait()
-                conn.close()
-            except Exception:
-                pass
-        _pool = None
-        _initialized = False
+        logger.info("Disposing SQLAlchemy engine and closing pool")
+        try:
+            if _engine is not None:
+                _engine.dispose()
+        except Exception as e:
+            logger.warning("Error disposing engine: %s", e)
+        finally:
+            _engine = None
+            _SessionFactory = None
+            _initialized = False
+            logger.info("Pool closed successfully")
 
 
 def get_customers(limit: int = 100):
