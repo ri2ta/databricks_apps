@@ -121,6 +121,18 @@ def _rows_to_dicts(description, rows) -> List[Dict[str, Any]]:
     return [dict(zip(cols, row)) for row in rows]
 
 
+def _execute_compiled(cursor, compiled):
+    """Execute compiled SA statement with DBAPI cursor, handling qmark/named styles."""
+    params = compiled.params or {}
+    if hasattr(compiled, "positiontup") and compiled.positiontup:
+        # qmark-style: use positional tuple in the order SA expects
+        ordered = [params[name] for name in compiled.positiontup]
+        cursor.execute(str(compiled), ordered)
+    else:
+        # named params path
+        cursor.execute(str(compiled), params)
+
+
 def fetch_list(entity: Dict[str, Any], page: int = 1, page_size: int | None = None, sort: str | None = None) -> List[Dict[str, Any]]:
     """Fetch paginated list for an entity using SQLAlchemy Core with parameter binding."""
     page = max(1, page or 1)
@@ -152,7 +164,7 @@ def fetch_list(entity: Dict[str, Any], page: int = 1, page_size: int | None = No
         cursor = conn.cursor()
         # Convert SQLAlchemy statement to string and execute with DBAPI
         compiled = stmt.compile(compile_kwargs={"literal_binds": False})
-        cursor.execute(str(compiled), compiled.params)
+        _execute_compiled(cursor, compiled)
         rows = cursor.fetchall()
         return _rows_to_dicts(cursor.description, rows)
     finally:
@@ -176,7 +188,7 @@ def fetch_detail(entity: Dict[str, Any], pk: Any) -> Dict[str, Any] | None:
     try:
         cursor = conn.cursor()
         compiled = stmt.compile(compile_kwargs={"literal_binds": False})
-        cursor.execute(str(compiled), compiled.params)
+        _execute_compiled(cursor, compiled)
         row = cursor.fetchone()
         if not row:
             return None
@@ -209,7 +221,7 @@ def search_lookup(entity: Dict[str, Any], q: str, limit: int = 10) -> List[Dict[
     try:
         cursor = conn.cursor()
         compiled = stmt.compile(compile_kwargs={"literal_binds": False})
-        cursor.execute(str(compiled), compiled.params)
+        _execute_compiled(cursor, compiled)
         rows = cursor.fetchall()
         return _rows_to_dicts(cursor.description, rows)
     finally:
@@ -253,7 +265,7 @@ def save(entity: Dict[str, Any], payload: Dict[str, Any]) -> Dict[str, Any]:
             
             # Execute update
             compiled = stmt.compile(compile_kwargs={"literal_binds": False})
-            cursor.execute(str(compiled), compiled.params)
+            _execute_compiled(cursor, compiled)
             
             # Verify the record was updated
             if cursor.rowcount == 0:
@@ -277,7 +289,7 @@ def save(entity: Dict[str, Any], payload: Dict[str, Any]) -> Dict[str, Any]:
             
             # Execute insert
             compiled = stmt.compile(compile_kwargs={"literal_binds": False})
-            cursor.execute(str(compiled), compiled.params)
+            _execute_compiled(cursor, compiled)
             
             # Get the last inserted ID
             new_id = cursor.lastrowid
