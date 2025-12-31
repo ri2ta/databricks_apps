@@ -7,6 +7,8 @@ from __future__ import annotations
 import logging
 from typing import Any, Dict, Mapping, Callable
 
+from sqlalchemy.exc import TimeoutError as SQLAlchemyTimeoutError, DBAPIError
+
 from . import entities_loader
 from ..repositories import generic_repo
 
@@ -28,6 +30,24 @@ def _missing_entity(entity_name: str, mode: str) -> Dict[str, Any]:
 
 
 def _error_context(entity: Dict[str, Any] | None, mode: str, exc: Exception, status: int = 500) -> Dict[str, Any]:
+    """
+    Build error context from exception.
+    Returns 503 for pool/timeout errors, 500 for other operational errors.
+    """
+    # Check if this is a pool timeout or exhaustion error
+    if isinstance(exc, SQLAlchemyTimeoutError) or isinstance(exc, DBAPIError):
+        error_msg = str(exc)
+        # Pool-related errors should return 503 (Service Unavailable)
+        if 'QueuePool' in error_msg or 'timeout' in error_msg.lower() or 'pool' in error_msg.lower():
+            return {
+                "ok": False,
+                "status": 503,
+                "error": "サービスが一時的に利用できません",  # Service temporarily unavailable
+                "entity": entity,
+                "mode": mode,
+            }
+    
+    # Default: return provided status (usually 500) with exception message
     return {
         "ok": False,
         "status": status,
