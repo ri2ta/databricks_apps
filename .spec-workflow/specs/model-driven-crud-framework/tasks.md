@@ -69,3 +69,31 @@
   - _Leverage: 要件5-7, design.md 更新方針_
   - _Requirements: 要件5-7, 非機能(信頼性/ユーザビリティ/セキュリティ)
   - _Prompt: (記録用)_
+
+- [ ] 11. DB 層を SQLAlchemy エンジン/Session 管理に置き換える
+  - File: approot/db.py; tests/test_db_sqlalchemy.py (新規)
+  - 内容: 既存の `init_pool`/`close_pool` インターフェースを維持しつつ内部を SQLAlchemy エンジン/Session ファクトリに差し替える。環境変数/Secret Scope から DSN とプール設定を取得し、atexit で dispose。ユニットテストで DSN/プール設定/Session 生成を検証する。
+  - _Leverage: design.md DB Layer 節, 既存 app.py の初期化/atexit 登録, env 設定ガイド_
+  - _Requirements: 要件8, 非機能(セキュリティ/信頼性/パフォーマンス)
+  - _Prompt: Implement the task for spec model-driven-crud-framework, first run spec-workflow-guide to get the workflow guide then implement the task: Role: Python data platform engineer | Task: init_pool/close_pool を保ちながら SQLAlchemy エンジン/Session 管理に置き換え、環境変数ベースで設定する | Restrictions: 既存呼び出しシグネチャを変更しない、パラメータバインドを前提にする、テスト先行 | _Leverage: design.md DB Layer, app.py 初期化 | _Requirements: 要件8, 非機能(セキュリティ/信頼性/パフォーマンス) | Success: 新規テストが通り、init_pool/close_pool を呼ぶ既存コードが変更なしで動作し、Session が取得できる_
+
+- [ ] 12. generic_repo を SQLAlchemy Core/ORM 化しインターフェース互換を維持する
+  - File: approot/repositories/generic_repo.py; tests/test_generic_repo_sqlalchemy.py (新規/既存強化)
+  - 内容: `fetch_list`/`fetch_detail`/`search_lookup`/`save` の内部実装を SQLAlchemy Core/ORM に置き換え、既存シグネチャと戻り値形状を維持。カラムホワイトリストとパラメータバインドで安全性を確保し、テストでページング/ソート/lookup/insert/update を検証する。
+  - _Leverage: design.md Generic Repository 節, 要件8, 既存 generic_repo テスト構造_
+  - _Requirements: 要件1, 要件2, 要件4, 要件5, 要件8, 非機能(セキュリティ/パフォーマンス)
+  - _Prompt: Implement the task for spec model-driven-crud-framework, first run spec-workflow-guide to get the workflow guide then implement the task: Role: Python data access developer | Task: generic_repo を SQLAlchemy Core/ORM で再実装し、既存インターフェースとレスポンス形状を壊さない | Restrictions: パラメータバインド必須、カラムは YAML 定義のホワイトリストのみ、テスト先行 | _Leverage: design.md Generic Repository, db.py Session | _Requirements: 要件1/2/4/5/8 | Success: 既存/追加テストが通り、list/detail/lookup/save が SQLAlchemy で動き、サービス層の呼び出しは変更不要_
+
+- [ ] 13. generic_service と Flask ルートの SQLAlchemy 互換性回帰テストを追加
+  - Files: approot/services/generic_service.py; approot/app.py; tests/test_generic_service.py; tests/test_htmx_endpoints.py
+  - 内容: SQLAlchemy 化後もサービス/ルートの戻り値やバリデーション挙動が変わらないことをテストで保証する。テストデータをセットアップするフィクスチャを SQLAlchemy 版に更新し、list/detail/form/save/actions/lookup の HTMX 応答が従来通りであることを確認する。
+  - _Leverage: design.md Generic Service/Flask Routes/Testing Strategy, 既存テスト群_
+  - _Requirements: 要件1-6, 要件8, 非機能(信頼性/ユーザビリティ)
+  - _Prompt: Implement the task for spec model-driven-crud-framework, first run spec-workflow-guide to get the workflow guide then implement the task: Role: Python service layer developer | Task: SQLAlchemy 化後のサービス/ルート挙動を回帰テストし、必要な最小修正のみ行う | Restrictions: 公開インターフェース変更禁止、HTMX 応答の形状を維持、テスト先行 | _Leverage: design.md, 既存 FlaskClient テスト | _Requirements: 要件1-6/8 | Success: 追加テストが通り、HTMX 応答とコンテキスト形状が互換であることが確認できる_
+
+- [ ] 14. 接続障害とプール枯渇のエラー伝搬をテストし UI 応答を確認する
+  - Files: approot/db.py; approot/repositories/generic_repo.py; approot/templates/partials/error.html; tests/test_error_handling_sqlalchemy.py (新規)
+  - 内容: SQLAlchemy の OperationalError/Timeout/Pool overflow をモックし、サービス/ルート経由で 500/503 を返すシナリオをテストする。HTMX で部分テンプレートとして簡潔なメッセージを返すことを確認。
+  - _Leverage: design.md Error Handling (DB アクセスエラー), 既存 error.html 部分テンプレート_
+  - _Requirements: 要件7, 要件8, 非機能(信頼性/ユーザビリティ)
+  - _Prompt: Implement the task for spec model-driven-crud-framework, first run spec-workflow-guide to get the workflow guide then implement the task: Role: Python reliability engineer | Task: SQLAlchemy の接続/プールエラーをモックし、サービス経由のエラーハンドリングと HTMX 応答をテスト | Restrictions: 詳細エラーはログのみ、UI は簡潔、既存テンプレートを再利用 | _Leverage: design.md Error Handling, error.html | _Requirements: 要件7/8 | Success: エラー系テストが通り、OperationalError/Timeout/Pool overflow 時に正しいステータスと部分テンプレートが返る_
