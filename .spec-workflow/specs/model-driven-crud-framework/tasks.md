@@ -70,7 +70,7 @@
   - _Requirements: 要件5-7, 非機能(信頼性/ユーザビリティ/セキュリティ)
   - _Prompt: (記録用)_
 
-- [ ] 11. DB 層を SQLAlchemy エンジン/Session 管理に置き換える
+- [-] 11. DB 層を SQLAlchemy エンジン/Session 管理に置き換える
   - File: approot/db.py; tests/test_db_sqlalchemy.py (新規)
   - 内容: 既存の `init_pool`/`close_pool` インターフェースを維持しつつ内部を SQLAlchemy エンジン/Session ファクトリに差し替える。環境変数/Secret Scope から DSN とプール設定を取得し、atexit で dispose。ユニットテストで DSN/プール設定/Session 生成を検証する。
   - _Leverage: design.md DB Layer 節, 既存 app.py の初期化/atexit 登録, env 設定ガイド_
