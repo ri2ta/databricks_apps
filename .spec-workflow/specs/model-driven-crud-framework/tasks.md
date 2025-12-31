@@ -84,7 +84,7 @@
   - _Requirements: 要件1, 要件2, 要件4, 要件5, 要件8, 非機能(セキュリティ/パフォーマンス)
   - _Prompt: Implement the task for spec model-driven-crud-framework, first run spec-workflow-guide to get the workflow guide then implement the task: Role: Python data access developer | Task: generic_repo を SQLAlchemy Core/ORM で再実装し、既存インターフェースとレスポンス形状を壊さない | Restrictions: パラメータバインド必須、カラムは YAML 定義のホワイトリストのみ、テスト先行 | _Leverage: design.md Generic Repository, db.py Session | _Requirements: 要件1/2/4/5/8 | Success: 既存/追加テストが通り、list/detail/lookup/save が SQLAlchemy で動き、サービス層の呼び出しは変更不要_
 
-- [-] 13. generic_service と Flask ルートの SQLAlchemy 互換性回帰テストを追加
+- [x] 13. generic_service と Flask ルートの SQLAlchemy 互換性回帰テストを追加
   - Files: approot/services/generic_service.py; approot/app.py; tests/test_generic_service.py; tests/test_htmx_endpoints.py
   - 内容: SQLAlchemy 化後もサービス/ルートの戻り値やバリデーション挙動が変わらないことをテストで保証する。テストデータをセットアップするフィクスチャを SQLAlchemy 版に更新し、list/detail/form/save/actions/lookup の HTMX 応答が従来通りであることを確認する。
   - _Leverage: design.md Generic Service/Flask Routes/Testing Strategy, 既存テスト群_

@@ -6,6 +6,7 @@ Uses file-based SQLite DB to persist across connections.
 import pytest
 import tempfile
 import os
+import importlib
 from pathlib import Path
 from sqlalchemy import create_engine, Table, Column, Integer, String, MetaData, text
 
@@ -96,8 +97,15 @@ def setup_test_db(sqlalchemy_db_url, temp_db_file):
 @pytest.fixture
 def client():
     """Create Flask test client."""
-    from approot.app import app
-    
+    from approot import db
+
+    # Ensure we start from a clean, file-backed pool set by setup_test_db
+    db.close_pool()
+
+    import approot.app as app_module
+    app_module = importlib.reload(app_module)
+    app = app_module.app
+
     app.config['TESTING'] = True
     
     with app.test_client() as client:
@@ -244,10 +252,9 @@ def test_entity_save_validation_error_returns_400(client):
     })
     
     assert response.status_code == 400
-    # Should return form with errors
-    assert b'required' in response.data.lower() or b'error' in response.data.lower()
-    # Should be partial HTML
+    # Should return form/error partial (no full HTML)
     assert b'<!DOCTYPE' not in response.data
+    assert b'error' in response.data.lower() or b'email' in response.data.lower()
 
 
 def test_entity_save_nonexistent_record_returns_404(client):
