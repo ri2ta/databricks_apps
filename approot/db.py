@@ -1,7 +1,7 @@
 import os
 import logging
 import threading
-from sqlalchemy import create_engine, event
+from sqlalchemy import create_engine
 from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.pool import QueuePool
 
@@ -12,12 +12,15 @@ _pool_lock = threading.Lock()
 _initialized = False
 logger = logging.getLogger(__name__)
 
-# DSN と プール設定を環境変数から読み取る
-# SQLALCHEMY_DATABASE_URL は必須、なければ KeyError でフェイルファスト
-DATABASE_URL = os.environ["SQLALCHEMY_DATABASE_URL"]
-POOL_SIZE = int(os.environ.get("DB_POOL_SIZE", "5"))
-MAX_OVERFLOW = int(os.environ.get("DB_MAX_OVERFLOW", "10"))
-POOL_TIMEOUT = int(os.environ.get("DB_POOL_TIMEOUT", "30"))
+def _load_config():
+    """Load DB config from environment with a clear error if missing."""
+    url = os.environ.get("SQLALCHEMY_DATABASE_URL")
+    if not url:
+        raise RuntimeError("SQLALCHEMY_DATABASE_URL is required")
+    pool_size = int(os.environ.get("DB_POOL_SIZE", "5"))
+    max_overflow = int(os.environ.get("DB_MAX_OVERFLOW", "10"))
+    pool_timeout = int(os.environ.get("DB_POOL_TIMEOUT", "30"))
+    return url, pool_size, max_overflow, pool_timeout
 
 
 def get_engine():
@@ -34,22 +37,24 @@ def get_session() -> Session:
     return _SessionFactory()
 
 
-def init_pool(size: int = POOL_SIZE):
+def init_pool(size: int | None = None):
     """コネクションプールを初期化します。複数回呼ばれても安全（最初の1回のみ実行）。"""
     global _engine, _SessionFactory, _initialized
     with _pool_lock:
         if _initialized:
             return
+        db_url, pool_size, max_overflow, pool_timeout = _load_config()
+        effective_pool_size = size or pool_size
         logger.info("initializing SQLAlchemy engine with pool_size=%s, max_overflow=%s, pool_timeout=%s",
-                    size, MAX_OVERFLOW, POOL_TIMEOUT)
+                    effective_pool_size, max_overflow, pool_timeout)
         
         # SQLAlchemy 2.x エンジンを作成（QueuePool をデフォルトで使用）
         _engine = create_engine(
-            DATABASE_URL,
+            db_url,
             poolclass=QueuePool,
-            pool_size=size,
-            max_overflow=MAX_OVERFLOW,
-            pool_timeout=POOL_TIMEOUT,
+            pool_size=effective_pool_size,
+            max_overflow=max_overflow,
+            pool_timeout=pool_timeout,
             pool_pre_ping=True,  # 接続の健全性チェック
             echo=False,
         )
@@ -70,7 +75,9 @@ def get_connection(timeout: float | None = None):
     
     # SQLAlchemy の raw connection を取得
     # これは DBAPI connection のラッパーで cursor() メソッドを持つ
-    return _engine.raw_connection()
+    conn = _engine.raw_connection()
+    _configure_raw_connection(conn, timeout=timeout)
+    return conn
 
 
 def release_connection(conn):
@@ -98,6 +105,25 @@ def close_pool():
             _SessionFactory = None
             _initialized = False
             logger.info("Pool closed successfully")
+
+
+def _configure_raw_connection(conn, timeout: float | None):
+    """Set autocommit/timeout for DBAPI connection when possible (compatibility shim)."""
+    try:
+        dbapi_conn = getattr(conn, "driver_connection", None) or getattr(conn, "connection", None) or conn
+        # Enable autocommit for sqlite to match prior behavior without explicit commit
+        if hasattr(dbapi_conn, "isolation_level"):
+            try:
+                dbapi_conn.isolation_level = None
+            except Exception:
+                pass
+        if timeout is not None and hasattr(dbapi_conn, "settimeout"):
+            try:
+                dbapi_conn.settimeout(timeout)
+            except Exception:
+                pass
+    except Exception:
+        logger.debug("raw connection configuration skipped", exc_info=True)
 
 
 def get_customers(limit: int = 100):
