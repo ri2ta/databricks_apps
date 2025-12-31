@@ -77,7 +77,7 @@
   - _Requirements: 要件8, 非機能(セキュリティ/信頼性/パフォーマンス)
   - _Prompt: Implement the task for spec model-driven-crud-framework, first run spec-workflow-guide to get the workflow guide then implement the task: Role: Python data platform engineer | Task: init_pool/close_pool を保ちながら SQLAlchemy エンジン/Session 管理に置き換え、環境変数ベースで設定する | Restrictions: 既存呼び出しシグネチャを変更しない、パラメータバインドを前提にする、テスト先行 | _Leverage: design.md DB Layer, app.py 初期化 | _Requirements: 要件8, 非機能(セキュリティ/信頼性/パフォーマンス) | Success: 新規テストが通り、init_pool/close_pool を呼ぶ既存コードが変更なしで動作し、Session が取得できる_
 
-- [-] 12. generic_repo を SQLAlchemy Core/ORM 化しインターフェース互換を維持する
+- [x] 12. generic_repo を SQLAlchemy Core/ORM 化しインターフェース互換を維持する
   - File: approot/repositories/generic_repo.py; tests/test_generic_repo_sqlalchemy.py (新規/既存強化)
   - 内容: `fetch_list`/`fetch_detail`/`search_lookup`/`save` の内部実装を SQLAlchemy Core/ORM に置き換え、既存シグネチャと戻り値形状を維持。カラムホワイトリストとパラメータバインドで安全性を確保し、テストでページング/ソート/lookup/insert/update を検証する。
   - _Leverage: design.md Generic Repository 節, 要件8, 既存 generic_repo テスト構造_
