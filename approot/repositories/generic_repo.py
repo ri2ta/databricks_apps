@@ -21,6 +21,28 @@ _IDENTIFIER_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 _table_cache: Dict[str, Table] = {}
 
 
+def _fetch_inserted_pk(cursor, pk_name: str):
+    """Try multiple strategies to obtain the last inserted primary key."""
+    new_id = getattr(cursor, "lastrowid", None)
+    if new_id:
+        return new_id
+
+    fallback_queries = (
+        "SELECT last_insert_rowid()",
+        "SELECT last_identity()",
+    )
+
+    for stmt in fallback_queries:
+        try:
+            cursor.execute(stmt)
+            row = cursor.fetchone()
+            if row and row[0] is not None:
+                return row[0]
+        except Exception:
+            logger.debug("fallback PK retrieval failed for statement=%s", stmt, exc_info=True)
+    return None
+
+
 def preload_tables(entities: Dict[str, Dict[str, Any]]):
     """Reflect and cache tables at startup to avoid first-request latency."""
     for entity in entities.values():
@@ -178,7 +200,7 @@ def fetch_list(entity: Dict[str, Any], page: int = 1, page_size: int | None = No
         # Convert SQLAlchemy statement to string and execute with DBAPI
         # Databricks SQL Warehouse struggles with post-compiled params (LIMIT/OFFSET) when passed separately.
         # Render literals directly to avoid unbound parameter errors.
-        compiled = stmt.compile(compile_kwargs={"literal_binds": True})
+        compiled = stmt.compile(compile_kwargs={"literal_binds": False})
         _execute_compiled(cursor, compiled)
         rows = cursor.fetchall()
         return _rows_to_dicts(cursor.description, rows)
@@ -202,7 +224,7 @@ def fetch_detail(entity: Dict[str, Any], pk: Any) -> Dict[str, Any] | None:
     conn = db.get_connection()
     try:
         cursor = conn.cursor()
-        compiled = stmt.compile(compile_kwargs={"literal_binds": True})
+        compiled = stmt.compile(compile_kwargs={"literal_binds": False})
         _execute_compiled(cursor, compiled)
         row = cursor.fetchone()
         if not row:
@@ -264,59 +286,53 @@ def save(entity: Dict[str, Any], payload: Dict[str, Any]) -> Dict[str, Any]:
     try:
         cursor = conn.cursor()
         if is_update:
-            # UPDATE existing record
             pk_value = filtered_payload[pk_name]
-            
-            # Build SET clause for all fields except primary key
+
             fields_to_update = {k: v for k, v in filtered_payload.items() if k != pk_name}
             if not fields_to_update:
-                # No fields to update, just return existing record
                 return fetch_detail(entity, pk_value)
-            
-            # Build UPDATE statement
+
             stmt = update(table).where(
                 table.c[_safe_identifier(pk_name)] == pk_value
             ).values(**fields_to_update)
-            
-            # Execute update
+
             compiled = stmt.compile(compile_kwargs={"literal_binds": True})
             _execute_compiled(cursor, compiled)
-            
-            # Verify the record was updated
+
             if cursor.rowcount == 0:
                 raise ValueError(f"Record with {pk_name}={pk_value} not found")
-            
-            # Commit the transaction
+
             conn.commit()
-            
-            # Return the updated record
             return fetch_detail(entity, pk_value)
-        else:
-            # INSERT new record
-            fields = {k: v for k, v in filtered_payload.items() 
-                     if k != pk_name or v not in (None, "", 0)}
-            
-            if not fields:
-                raise ValueError("No fields to insert")
-            
-            # Build INSERT statement
-            stmt = insert(table).values(**fields)
-            
-            # Execute insert
-            compiled = stmt.compile(compile_kwargs={"literal_binds": True})
-            _execute_compiled(cursor, compiled)
-            
-            # Get the last inserted ID
-            new_id = cursor.lastrowid
-            
-            # Commit the transaction
-            conn.commit()
-            
-            if new_id:
-                filtered_payload[pk_name] = new_id
-                return filtered_payload
-            else:
-                # If we can't get the ID, return payload
-                return filtered_payload
+
+        # INSERT path
+        fields = {k: v for k, v in filtered_payload.items()
+                  if k != pk_name or v not in (None, "", 0)}
+
+        if not fields:
+            raise ValueError("No fields to insert")
+
+        stmt = insert(table).values(**fields)
+        compiled = stmt.compile(compile_kwargs={"literal_binds": True})
+        _execute_compiled(cursor, compiled)
+
+        pk_value = _fetch_inserted_pk(cursor, pk_name)
+        if pk_value is None:
+            conn.rollback()
+            raise ValueError(
+                "Insert succeeded but primary key could not be retrieved; "
+                "provide a primary key value or configure identity retrieval"
+            )
+
+        filtered_payload[pk_name] = pk_value
+        conn.commit()
+        return filtered_payload
+
+    except Exception:
+        try:
+            conn.rollback()
+        except Exception:
+            logger.warning("rollback failed after save error", exc_info=True)
+        raise
     finally:
         db.release_connection(conn)

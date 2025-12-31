@@ -1,11 +1,13 @@
 import os
 import logging
 import threading
+import time
 from dotenv import load_dotenv
 from sqlalchemy import create_engine
-from sqlalchemy.engine import make_url
+from sqlalchemy.engine import make_url, Connection
 from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.pool import QueuePool
+from sqlalchemy.exc import DBAPIError
 import requests
 
 # モジュールレベルのエンジン、セッションファクトリ、ロック
@@ -13,10 +15,21 @@ _engine = None
 _SessionFactory = None
 _pool_lock = threading.Lock()
 _initialized = False
+_token_cache = None  # {"key": (host, client_id, scope), "token": str, "expires_at": float}
+_uses_client_credentials = False
 logger = logging.getLogger(__name__)
 
 # Ensure environment variables from .env are available even in direct imports (tests, scripts)
 load_dotenv()
+
+# Provide commit()/rollback() on SQLAlchemy Connection for 1.4 (used in tests)
+if not hasattr(Connection, "commit"):
+    def _conn_commit(self):
+        return self.connection.commit()
+    def _conn_rollback(self):
+        return self.connection.rollback()
+    Connection.commit = _conn_commit  # type: ignore[attr-defined]
+    Connection.rollback = _conn_rollback  # type: ignore[attr-defined]
 
 def _load_config():
     """Load DB config from environment with a clear error if missing."""
@@ -29,7 +42,7 @@ def _load_config():
     return url, pool_size, max_overflow, pool_timeout
 
 
-def _fetch_access_token(host: str, client_id: str, client_secret: str, scope: str = "all-apis") -> str:
+def _fetch_access_token(host: str, client_id: str, client_secret: str, scope: str = "all-apis") -> tuple[str, int]:
     """Fetch OAuth access token using client_credentials against workspace OIDC."""
     token_endpoint = f"https://{host}/oidc/v1/token"
     data = {
@@ -44,6 +57,28 @@ def _fetch_access_token(host: str, client_id: str, client_secret: str, scope: st
     token = payload.get("access_token")
     if not token:
         raise RuntimeError("access_token not returned from token endpoint")
+    expires_in = int(payload.get("expires_in", 3600))
+    return token, expires_in
+
+
+def _get_cached_access_token(host: str, client_id: str, client_secret: str, scope: str) -> str:
+    """Return cached access token or fetch a new one when expired."""
+    global _token_cache
+    cache_key = (host, client_id, scope)
+    now = time.time()
+
+    if _token_cache and _token_cache.get("key") == cache_key:
+        if _token_cache["expires_at"] - 60 > now:
+            return _token_cache["token"]
+
+    token, expires_in = _fetch_access_token(host, client_id, client_secret, scope)
+    # Refresh 10% early; minimum 60 seconds
+    ttl = max(60, int(expires_in * 0.9))
+    _token_cache = {
+        "key": cache_key,
+        "token": token,
+        "expires_at": now + ttl,
+    }
     return token
 
 
@@ -63,7 +98,7 @@ def get_session() -> Session:
 
 def init_pool(size: int | None = None):
     """コネクションプールを初期化します。複数回呼ばれても安全（最初の1回のみ実行）。"""
-    global _engine, _SessionFactory, _initialized
+    global _engine, _SessionFactory, _initialized, _uses_client_credentials
     with _pool_lock:
         if _initialized:
             return
@@ -77,8 +112,9 @@ def init_pool(size: int | None = None):
         client_id = connect_args.pop("client_id", None)
         client_secret = connect_args.pop("client_secret", None)
         scope = os.environ.get("DATABRICKS_OAUTH_SCOPE", "all-apis")
-        if client_id and client_secret:
-            token = _fetch_access_token(url.host, client_id, client_secret, scope)
+        _uses_client_credentials = bool(client_id and client_secret)
+        if _uses_client_credentials:
+            token = _get_cached_access_token(url.host, client_id, client_secret, scope)
             connect_args["access_token"] = token
             # Use token-based auth; no interactive OAuth flow
             connect_args.pop("auth_type", None)
@@ -97,6 +133,43 @@ def init_pool(size: int | None = None):
             pool_pre_ping=True,  # 接続の健全性チェック
             echo=False,
         )
+
+        # Add commit()/rollback() compatibility for SQLAlchemy <2 Connection objects used in tests
+        _orig_connect = _engine.connect
+
+        def _connect_with_commit(*args, **kwargs):
+            conn = _orig_connect(*args, **kwargs)
+            if hasattr(conn, "commit"):
+                return conn
+
+            class _CommitCompat:
+                def __init__(self, inner):
+                    self._inner = inner
+
+                def __getattr__(self, name):
+                    return getattr(self._inner, name)
+
+                def commit(self):
+                    return self._inner.connection.commit()
+
+                def rollback(self):
+                    return self._inner.connection.rollback()
+
+                def close(self):
+                    return self._inner.close()
+
+                def begin(self):
+                    return self._inner.begin()
+
+                def __enter__(self):
+                    return self
+
+                def __exit__(self, exc_type, exc, tb):
+                    return self._inner.__exit__(exc_type, exc, tb)
+
+            return _CommitCompat(conn)
+
+        _engine.connect = _connect_with_commit  # type: ignore[attr-defined]
         
         # Session ファクトリを作成
         _SessionFactory = sessionmaker(bind=_engine, expire_on_commit=False)
@@ -111,10 +184,26 @@ def get_connection(timeout: float | None = None):
     global _engine, _initialized
     if not _initialized:
         init_pool()
-    
+
+    # Refresh token-based engine when token is close to expiry
+    if _uses_client_credentials and _token_cache:
+        now = time.time()
+        if _token_cache["expires_at"] - 60 <= now:
+            close_pool()
+            init_pool()
+
     # SQLAlchemy の raw connection を取得
     # これは DBAPI connection のラッパーで cursor() メソッドを持つ
-    conn = _engine.raw_connection()
+    try:
+        conn = _engine.raw_connection()
+    except DBAPIError:
+        # On auth errors, try refreshing the pool once
+        if _uses_client_credentials:
+            close_pool()
+            init_pool()
+            conn = _engine.raw_connection()
+        else:
+            raise
     _configure_raw_connection(conn, timeout=timeout)
     return conn
 
@@ -129,7 +218,7 @@ def release_connection(conn):
 
 def close_pool():
     """プール内の接続を全てクローズし、初期化状態をリセットする。"""
-    global _engine, _SessionFactory, _initialized
+    global _engine, _SessionFactory, _initialized, _uses_client_credentials
     with _pool_lock:
         if not _initialized:
             return
@@ -143,6 +232,7 @@ def close_pool():
             _engine = None
             _SessionFactory = None
             _initialized = False
+            _uses_client_credentials = False
             logger.info("Pool closed successfully")
 
 
