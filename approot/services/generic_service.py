@@ -7,6 +7,8 @@ from __future__ import annotations
 import logging
 from typing import Any, Dict, Mapping, Callable
 
+from sqlalchemy.exc import TimeoutError as SQLAlchemyTimeoutError, DBAPIError
+
 from . import entities_loader
 from ..repositories import generic_repo
 
@@ -28,10 +30,36 @@ def _missing_entity(entity_name: str, mode: str) -> Dict[str, Any]:
 
 
 def _error_context(entity: Dict[str, Any] | None, mode: str, exc: Exception, status: int = 500) -> Dict[str, Any]:
+    """
+    Build error context from exception.
+    - Pool/timeout (DBAPI/SQLAlchemy timeout) => 503 with generic UI message
+    - Other errors => status (default 500) with generic UI message
+
+    Note: The caller should already log the exception details; UI message stays concise to avoid leakage.
+    """
+
+    # Default responses
+    ui_error = "処理に失敗しました"
+    status_code = status
+
+    # Pool/timeout errors should surface as 503 (Service Unavailable) with a generic message
+    if isinstance(exc, SQLAlchemyTimeoutError):
+        status_code = 503
+        ui_error = "サービスが一時的に利用できません"
+    elif isinstance(exc, DBAPIError):
+        # Distinguish pool exhaustion/timeout vs other DBAPI errors
+        lowered = str(exc).lower()
+        if "queuepool" in lowered or "timeout" in lowered or "pool" in lowered:
+            status_code = 503
+            ui_error = "サービスが一時的に利用できません"
+        else:
+            status_code = status
+            ui_error = "処理に失敗しました"
+
     return {
         "ok": False,
-        "status": status,
-        "error": str(exc),
+        "status": status_code,
+        "error": ui_error,
         "entity": entity,
         "mode": mode,
     }
