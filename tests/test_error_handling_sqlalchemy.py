@@ -96,7 +96,7 @@ def test_repo_save_dbapi_error_propagates(sample_entity):
 
 # Task 14: Test service layer catches and returns error context with status 500
 def test_service_render_list_handles_operational_error(sample_entity):
-    """Task 14: Service layer should catch OperationalError and return error context with status 500"""
+    """Task 14: Service layer should catch OperationalError and return error context with status 500 and generic message"""
     from approot.services import generic_service
     from approot.repositories import generic_repo
     
@@ -108,7 +108,10 @@ def test_service_render_list_handles_operational_error(sample_entity):
         
         assert ctx.get('ok') is False
         assert ctx.get('status') == 500
-        assert 'database unavailable' in ctx.get('error', '')
+        # UI message should be generic and not leak internal details
+        error_msg = ctx.get('error', '')
+        assert error_msg
+        assert 'unavailable' not in error_msg.lower()
 
 
 # Task 14: Test service layer handles TimeoutError with status 503

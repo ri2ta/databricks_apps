@@ -255,7 +255,8 @@ def test_render_list_handles_repo_error(monkeypatch, entities):
 
     assert ctx["ok"] is False
     assert ctx["status"] == 500
-    assert "boom" in ctx["error"].lower()
+    # UI message should be generic to avoid leaking details
+    assert ctx["error"] == "処理に失敗しました"
 
 
 # Task 6: Edge cases and error paths
@@ -315,7 +316,8 @@ def test_render_detail_handles_repo_error(monkeypatch, entities):
 
     assert ctx["ok"] is False
     assert ctx["status"] == 500
-    assert "database error" in ctx["error"].lower()
+    # UI message should be generic to avoid leaking details
+    assert ctx["error"] == "処理に失敗しました"
 
 
 def test_render_form_edit_handles_repo_error(monkeypatch, entities):
@@ -331,7 +333,8 @@ def test_render_form_edit_handles_repo_error(monkeypatch, entities):
 
     assert ctx["ok"] is False
     assert ctx["status"] == 500
-    assert "fetch failed" in ctx["error"].lower()
+    # UI message should be generic to avoid leaking details
+    assert ctx["error"] == "処理に失敗しました"
 
 
 def test_handle_action_with_none_entities():
@@ -397,7 +400,8 @@ def test_handle_action_handler_raises_exception(monkeypatch, entities):
 
     assert ctx["ok"] is False
     assert ctx["status"] == 500
-    assert "handler failed" in ctx["error"].lower()
+    # UI message should be generic to avoid leaking details
+    assert ctx["error"] == "処理に失敗しました"
 
 
 def test_render_list_with_missing_list_config(monkeypatch):
