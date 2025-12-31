@@ -91,8 +91,8 @@
   - _Requirements: 要件1-6, 要件8, 非機能(信頼性/ユーザビリティ)
   - _Prompt: Implement the task for spec model-driven-crud-framework, first run spec-workflow-guide to get the workflow guide then implement the task: Role: Python service layer developer | Task: SQLAlchemy 化後のサービス/ルート挙動を回帰テストし、必要な最小修正のみ行う | Restrictions: 公開インターフェース変更禁止、HTMX 応答の形状を維持、テスト先行 | _Leverage: design.md, 既存 FlaskClient テスト | _Requirements: 要件1-6/8 | Success: 追加テストが通り、HTMX 応答とコンテキスト形状が互換であることが確認できる_
 
-- [-] 14. 接続障害とプール枯渇のエラー伝搬をテストし UI 応答を確認する
-  - Files: approot/db.py; approot/repositories/generic_repo.py; approot/templates/partials/error.html; tests/test_error_handling_sqlalchemy.py (新規)
+- [x] 14. 接続障害とプール枯渇のエラー伝搬をテストし UI 応答を確認する
+  - Files: approot/db.py; approot/repositories/generic_repo.py; approot/services/generic_service.py; approot/templates/partials/error.html; tests/test_error_handling_sqlalchemy.py (新規)
   - 内容: SQLAlchemy の OperationalError/Timeout/Pool overflow をモックし、サービス/ルート経由で 500/503 を返すシナリオをテストする。HTMX で部分テンプレートとして簡潔なメッセージを返すことを確認。
   - _Leverage: design.md Error Handling (DB アクセスエラー), 既存 error.html 部分テンプレート_
   - _Requirements: 要件7, 要件8, 非機能(信頼性/ユーザビリティ)
