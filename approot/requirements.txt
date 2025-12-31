@@ -1,7 +1,8 @@
 flask
-databricks-sql-connector[pyarrow]
+databricks-sql-connector[pyarrow,sqlalchemy]
+sqlalchemy-databricks>=0.2.0
 python-dotenv
 requests
 pyyaml
 pytest
-sqlalchemy>=2.0.0
+sqlalchemy>=1.4,<2.0

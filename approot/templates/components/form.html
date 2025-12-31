@@ -1,4 +1,8 @@
 <form class="mt-4" hx-post="{{ action_url or '' }}" hx-target="{{ target or '#main-pane' }}">
+  {% set pk_name = entity.primary_key or 'id' %}
+  {% if record and pk_name in record %}
+  <input type="hidden" name="{{ pk_name }}" value="{{ record[pk_name] }}">
+  {% endif %}
   {% for section in entity.form.sections %}
   <div class="mb-6">
     <h3 class="text-lg font-semibold mb-3">{{ section.label }}</h3>

@@ -1,9 +1,12 @@
 import os
 import logging
 import threading
+from dotenv import load_dotenv
 from sqlalchemy import create_engine
+from sqlalchemy.engine import make_url
 from sqlalchemy.orm import sessionmaker, Session
 from sqlalchemy.pool import QueuePool
+import requests
 
 # モジュールレベルのエンジン、セッションファクトリ、ロック
 _engine = None
@@ -11,6 +14,9 @@ _SessionFactory = None
 _pool_lock = threading.Lock()
 _initialized = False
 logger = logging.getLogger(__name__)
+
+# Ensure environment variables from .env are available even in direct imports (tests, scripts)
+load_dotenv()
 
 def _load_config():
     """Load DB config from environment with a clear error if missing."""
@@ -21,6 +27,24 @@ def _load_config():
     max_overflow = int(os.environ.get("DB_MAX_OVERFLOW", "10"))
     pool_timeout = int(os.environ.get("DB_POOL_TIMEOUT", "30"))
     return url, pool_size, max_overflow, pool_timeout
+
+
+def _fetch_access_token(host: str, client_id: str, client_secret: str, scope: str = "all-apis") -> str:
+    """Fetch OAuth access token using client_credentials against workspace OIDC."""
+    token_endpoint = f"https://{host}/oidc/v1/token"
+    data = {
+        "grant_type": "client_credentials",
+        "client_id": client_id,
+        "client_secret": client_secret,
+        "scope": scope,
+    }
+    resp = requests.post(token_endpoint, data=data, timeout=30)
+    resp.raise_for_status()
+    payload = resp.json()
+    token = payload.get("access_token")
+    if not token:
+        raise RuntimeError("access_token not returned from token endpoint")
+    return token
 
 
 def get_engine():
@@ -45,12 +69,27 @@ def init_pool(size: int | None = None):
             return
         db_url, pool_size, max_overflow, pool_timeout = _load_config()
         effective_pool_size = size or pool_size
+        url = make_url(db_url)
+        # Pass all query params explicitly as connect_args to avoid driver parsing issues
+        connect_args = dict(url.query)
+
+        # If service principal creds are present, fetch an access token via client_credentials
+        client_id = connect_args.pop("client_id", None)
+        client_secret = connect_args.pop("client_secret", None)
+        scope = os.environ.get("DATABRICKS_OAUTH_SCOPE", "all-apis")
+        if client_id and client_secret:
+            token = _fetch_access_token(url.host, client_id, client_secret, scope)
+            connect_args["access_token"] = token
+            # Use token-based auth; no interactive OAuth flow
+            connect_args.pop("auth_type", None)
+
         logger.info("initializing SQLAlchemy engine with pool_size=%s, max_overflow=%s, pool_timeout=%s",
                     effective_pool_size, max_overflow, pool_timeout)
         
         # SQLAlchemy 2.x エンジンを作成（QueuePool をデフォルトで使用）
         _engine = create_engine(
             db_url,
+            connect_args=connect_args,
             poolclass=QueuePool,
             pool_size=effective_pool_size,
             max_overflow=max_overflow,

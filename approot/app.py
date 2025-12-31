@@ -2,8 +2,10 @@
 import logging
 import atexit
 from flask import Flask, render_template, request
+from dotenv import load_dotenv
 from . import db
 from .services import entities_loader, generic_service
+from .repositories import generic_repo
 from pathlib import Path
 
 # Basic logging setup so db.py logs show up on console
@@ -11,6 +13,9 @@ logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s %(levelname)s %(name)s %(message)s",
 )
+
+# Load .env before touching DB
+load_dotenv()
 
 app = Flask(__name__)
 app.logger.setLevel(logging.INFO)
@@ -39,6 +44,11 @@ if not _validation_result.success:
 else:
     _ENTITIES = _validation_result.entities
     app.logger.info("Loaded %d entities: %s", len(_ENTITIES), list(_ENTITIES.keys()))
+    # Preload table metadata to reduce first-request latency
+    try:
+        generic_repo.preload_tables(_ENTITIES)
+    except Exception:
+        app.logger.exception("Table preload failed")
 
 # Action handlers registry
 # Register custom action handlers here

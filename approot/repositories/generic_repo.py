@@ -21,6 +21,19 @@ _IDENTIFIER_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*$")
 _table_cache: Dict[str, Table] = {}
 
 
+def preload_tables(entities: Dict[str, Dict[str, Any]]):
+    """Reflect and cache tables at startup to avoid first-request latency."""
+    for entity in entities.values():
+        table_name = entity.get("table")
+        if not table_name:
+            continue
+        cols = _select_columns(entity)
+        try:
+            _get_table(table_name, columns=cols)
+        except Exception:
+            logger.exception("preload_tables failed for table=%s", table_name)
+
+
 def _get_table(table_name: str, columns: List[str] = None) -> Table:
     """
     Get or reflect SQLAlchemy Table object for the given table name.
@@ -163,7 +176,9 @@ def fetch_list(entity: Dict[str, Any], page: int = 1, page_size: int | None = No
     try:
         cursor = conn.cursor()
         # Convert SQLAlchemy statement to string and execute with DBAPI
-        compiled = stmt.compile(compile_kwargs={"literal_binds": False})
+        # Databricks SQL Warehouse struggles with post-compiled params (LIMIT/OFFSET) when passed separately.
+        # Render literals directly to avoid unbound parameter errors.
+        compiled = stmt.compile(compile_kwargs={"literal_binds": True})
         _execute_compiled(cursor, compiled)
         rows = cursor.fetchall()
         return _rows_to_dicts(cursor.description, rows)
@@ -187,7 +202,7 @@ def fetch_detail(entity: Dict[str, Any], pk: Any) -> Dict[str, Any] | None:
     conn = db.get_connection()
     try:
         cursor = conn.cursor()
-        compiled = stmt.compile(compile_kwargs={"literal_binds": False})
+        compiled = stmt.compile(compile_kwargs={"literal_binds": True})
         _execute_compiled(cursor, compiled)
         row = cursor.fetchone()
         if not row:
@@ -264,7 +279,7 @@ def save(entity: Dict[str, Any], payload: Dict[str, Any]) -> Dict[str, Any]:
             ).values(**fields_to_update)
             
             # Execute update
-            compiled = stmt.compile(compile_kwargs={"literal_binds": False})
+            compiled = stmt.compile(compile_kwargs={"literal_binds": True})
             _execute_compiled(cursor, compiled)
             
             # Verify the record was updated
@@ -288,7 +303,7 @@ def save(entity: Dict[str, Any], payload: Dict[str, Any]) -> Dict[str, Any]:
             stmt = insert(table).values(**fields)
             
             # Execute insert
-            compiled = stmt.compile(compile_kwargs={"literal_binds": False})
+            compiled = stmt.compile(compile_kwargs={"literal_binds": True})
             _execute_compiled(cursor, compiled)
             
             # Get the last inserted ID

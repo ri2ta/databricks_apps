@@ -24,6 +24,5 @@ customer:
       - label: 詳細
         fields:
           - { name: status, label: ステータス, type: lookup, lookup: status }
-          - { name: note, label: 備考, type: textarea, rows: 4 }
     actions:
-      - { name: calc_points, label: ポイント計算, endpoint: /customer/calc_points }
+      - { name: save, label: 保存, endpoint: /customer/save }
