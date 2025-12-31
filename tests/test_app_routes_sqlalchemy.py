@@ -278,12 +278,12 @@ def test_entity_action_with_handler_returns_200(client):
     def test_handler(entity, payload):
         return {"message": "Success"}
     
-    # Register handler - use calc_points which is defined in customer entity
+    # Register handler - use export_csv which is in list.actions
     original_handlers = app._ACTION_HANDLERS.copy()
-    app._ACTION_HANDLERS['calc_points'] = test_handler
+    app._ACTION_HANDLERS['export_csv'] = test_handler
     
     try:
-        response = client.post('/customer/actions/calc_points', data={'field': 'value'})
+        response = client.post('/customer/actions/export_csv', data={'field': 'value'})
         
         assert response.status_code == 200
         assert b'<div' in response.data or b'alert' in response.data
@@ -305,8 +305,8 @@ def test_entity_action_unknown_action_returns_404(client):
 
 def test_entity_action_missing_handler_returns_501(client):
     """Task 13: Action returns 501 when handler not registered."""
-    # calc_points is defined but handler not registered
-    response = client.post('/customer/actions/calc_points', data={})
+    # export_csv is defined but handler not registered
+    response = client.post('/customer/actions/export_csv', data={})
     
     assert response.status_code == 501
     assert b'handler' in response.data.lower() or b'not' in response.data.lower()
@@ -321,10 +321,10 @@ def test_entity_action_with_exception_returns_500(client):
         raise RuntimeError("Handler error")
     
     original_handlers = app._ACTION_HANDLERS.copy()
-    app._ACTION_HANDLERS['calc_points'] = failing_handler
+    app._ACTION_HANDLERS['export_csv'] = failing_handler
     
     try:
-        response = client.post('/customer/actions/calc_points', data={})
+        response = client.post('/customer/actions/export_csv', data={})
         
         assert response.status_code == 500
         assert b'error' in response.data.lower()
