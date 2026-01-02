@@ -1,27 +1,27 @@
 schema_version: 1
-name: databricks-app
-description: "Flask + HTMX CRUD demo on Databricks Apps"
 
-app:
-  type: python
-  entry_point: "gunicorn -b 0.0.0.0:3000 approot.app:app"
-  # Python deps are installed from the bundled requirements file
+# Run with Gunicorn (Flask WSGI). Uses Databricks-provided port env; falls back to 3000 locally.
+command:
+  - gunicorn
+  - "-b"
+  - "0.0.0.0:${DATABRICKS_APP_PORT:-3000}"
+  - "approot.app:app"
+  - "-w"
+  - "2"
+
+# Extra environment variables (Secrets are injected by Databricks Apps)
+env:
+  - name: SQLALCHEMY_DATABASE_URL
+    value: "{{secrets/app-secrets/sqlalchemy_database_url}}"
+  - name: DB_POOL_SIZE
+    value: "5"
+  - name: DB_MAX_OVERFLOW
+    value: "10"
+  - name: DB_POOL_TIMEOUT
+    value: "30"
+  - name: DATABRICKS_OAUTH_SCOPE
+    value: "{{secrets/app-secrets/oauth_scope}}"
+
+# Install Python dependencies from the bundled requirements file
+python:
   pip_requirements_file: approot/requirements.txt
-  env:
-    variables:
-      # Databricks SQL Warehouse connection URL (client_credentials expected). Example:
-      # databricks+connector://<host>:443/?http_path=<http_path>&client_id=<id>&client_secret=<secret>
-      SQLALCHEMY_DATABASE_URL: "{{secrets/app-secrets/sqlalchemy_database_url}}"
-      # Optional pool tuning
-      DB_POOL_SIZE: "5"
-      DB_MAX_OVERFLOW: "10"
-      DB_POOL_TIMEOUT: "30"
-      # Optional scope override for OAuth (default: all-apis)
-      DATABRICKS_OAUTH_SCOPE: "{{secrets/app-secrets/oauth_scope}}"
-
-# Compute/profile selection (adjust to your workspace defaults)
-compute:
-  target: "shared-compute"
-
-# Permissions are managed via the chosen compute profile; ensure the app principal has
-# access to the secrets scope `app-secrets` and to the target SQL Warehouse.
