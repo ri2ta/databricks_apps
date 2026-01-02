@@ -6,3 +6,4 @@ requests
 pyyaml
 pytest
 sqlalchemy>=1.4,<2.0
+gunicorn

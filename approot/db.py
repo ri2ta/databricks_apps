@@ -6,7 +6,7 @@ from dotenv import load_dotenv
 from sqlalchemy import create_engine
 from sqlalchemy.engine import make_url, Connection
 from sqlalchemy.orm import sessionmaker, Session
-from sqlalchemy.pool import QueuePool
+from sqlalchemy.pool import NullPool
 from sqlalchemy.exc import DBAPIError
 import requests
 
@@ -97,13 +97,14 @@ def get_session() -> Session:
 
 
 def init_pool(size: int | None = None):
-    """コネクションプールを初期化します。複数回呼ばれても安全（最初の1回のみ実行）。"""
+    """コネクションプールを初期化します。
+    Databricks Apps ではワーカーが短命のため、NullPool で毎リクエスト接続を張り直す。
+    """
     global _engine, _SessionFactory, _initialized, _uses_client_credentials
     with _pool_lock:
         if _initialized:
             return
         db_url, pool_size, max_overflow, pool_timeout = _load_config()
-        effective_pool_size = size or pool_size
         url = make_url(db_url)
         # Pass all query params explicitly as connect_args to avoid driver parsing issues
         connect_args = dict(url.query)
@@ -119,17 +120,13 @@ def init_pool(size: int | None = None):
             # Use token-based auth; no interactive OAuth flow
             connect_args.pop("auth_type", None)
 
-        logger.info("initializing SQLAlchemy engine with pool_size=%s, max_overflow=%s, pool_timeout=%s",
-                    effective_pool_size, max_overflow, pool_timeout)
+        logger.info("initializing SQLAlchemy engine with NullPool (stateless app)")
         
-        # SQLAlchemy 2.x エンジンを作成（QueuePool をデフォルトで使用）
+        # SQLAlchemy エンジンを作成（NullPoolで毎回新規接続）
         _engine = create_engine(
             db_url,
             connect_args=connect_args,
-            poolclass=QueuePool,
-            pool_size=effective_pool_size,
-            max_overflow=max_overflow,
-            pool_timeout=pool_timeout,
+            poolclass=NullPool,
             pool_pre_ping=True,  # 接続の健全性チェック
             echo=False,
         )
