@@ -19,10 +19,10 @@ _token_cache = None  # {"key": (host, client_id, scope), "token": str, "expires_
 _uses_client_credentials = False
 logger = logging.getLogger(__name__)
 
-# Ensure environment variables from .env are available even in direct imports (tests, scripts)
+# テスト・スクリプト経由でも .env の環境変数を拾えるように先読み
 load_dotenv()
 
-# Provide commit()/rollback() on SQLAlchemy Connection for 1.4 (used in tests)
+# SQLAlchemy 1.4 の Connection に commit()/rollback() を後付け（テストで使用）
 if not hasattr(Connection, "commit"):
     def _conn_commit(self):
         return self.connection.commit()
@@ -32,7 +32,7 @@ if not hasattr(Connection, "commit"):
     Connection.rollback = _conn_rollback  # type: ignore[attr-defined]
 
 def _load_config():
-    """Load DB config from environment with a clear error if missing."""
+    """環境変数から DB 接続情報を読み込み、欠落時は明示的に失敗させる。"""
     host = os.environ.get("DATABRICKS_HOST")
     http_path = os.environ.get("DATABRICKS_HTTP_PATH")
     client_id = os.environ.get("DATABRICKS_CLIENT_ID")
@@ -53,11 +53,7 @@ def _load_config():
 
 
 def _fetch_access_token(host: str, client_id: str, client_secret: str, scope: str | None = None) -> tuple[str, int]:
-    """Fetch OAuth access token using client_credentials against workspace OIDC.
-
-    Scope は Databricks 推奨の "all-apis" をデフォルトとし、指定が空なら付けない。
-    400 発生時のレスポンス本文をログに出して原因を特定しやすくする。
-    """
+    """ワークスペース OIDC に client_credentials でアクセストークンを取得する。"""
     token_endpoint = f"https://{host}/oidc/v1/token"
     data = {
         "grant_type": "client_credentials",
@@ -79,7 +75,7 @@ def _fetch_access_token(host: str, client_id: str, client_secret: str, scope: st
 
 
 def _get_cached_access_token(host: str, client_id: str, client_secret: str, scope: str) -> str:
-    """Return cached access token or fetch a new one when expired."""
+    """キャッシュが有効なら再利用し、期限切れなら新規取得して返す。"""
     global _token_cache
     cache_key = (host, client_id, scope)
     now = time.time()
@@ -100,13 +96,13 @@ def _get_cached_access_token(host: str, client_id: str, client_secret: str, scop
 
 
 def get_engine():
-    """SQLAlchemy エンジンを取得します。プール未初期化なら None を返します。"""
+    """SQLAlchemy エンジンを返す。プール未初期化時は None。"""
     global _engine
     return _engine
 
 
 def get_session() -> Session:
-    """SQLAlchemy Session を取得します。プール未初期化なら init_pool を呼び出します。"""
+    """SQLAlchemy Session を返す。未初期化なら init_pool を実行してから生成。"""
     global _SessionFactory, _initialized
     if not _initialized:
         init_pool()
@@ -114,9 +110,8 @@ def get_session() -> Session:
 
 
 def init_pool(size: int | None = None):
-    """コネクションプールを初期化します。
-    Databricks Apps ではワーカーが短命のため、極小 QueuePool (size=1, overflow=0/1) で
-    最低限の接続を温存しつつ毎リクエストのレイテンシを抑える。
+    """コネクションプールを初期化する。
+    Databricks Apps の短命ワーカー想定で最小限の QueuePool を作り、接続を温存しつつレイテンシを抑える。
     """
     global _engine, _SessionFactory, _initialized, _uses_client_credentials
     with _pool_lock:
@@ -124,10 +119,10 @@ def init_pool(size: int | None = None):
             return
         db_url, pool_size, max_overflow, pool_timeout = _load_config()
         url = make_url(db_url)
-        # Pass all query params explicitly as connect_args to avoid driver parsing issues
+        # ドライバー側のパース不備を避けるため query params を connect_args に移す
         connect_args = dict(url.query)
 
-        # If service principal creds are present, fetch an access token via client_credentials
+        # サービスプリンシパル認証があれば client_credentials でトークン取得
         client_id = connect_args.pop("client_id", None)
         client_secret = connect_args.pop("client_secret", None)
         scope = os.environ.get("DATABRICKS_OAUTH_SCOPE") or "all-apis"
@@ -135,7 +130,7 @@ def init_pool(size: int | None = None):
         if _uses_client_credentials:
             token = _get_cached_access_token(url.host, client_id, client_secret, scope)
             connect_args["access_token"] = token
-            # Use token-based auth; no interactive OAuth flow
+            # トークンベース認証に切り替え（対話 OAuth を使わない）
             connect_args.pop("auth_type", None)
 
         logger.info(
@@ -157,7 +152,7 @@ def init_pool(size: int | None = None):
             echo=False,
         )
 
-        # Add commit()/rollback() compatibility for SQLAlchemy <2 Connection objects used in tests
+        # テストで使う SQLAlchemy <2 の Connection に commit()/rollback() を付与
         _orig_connect = _engine.connect
 
         def _connect_with_commit(*args, **kwargs):
@@ -202,8 +197,7 @@ def init_pool(size: int | None = None):
 
 
 def get_connection(timeout: float | None = None):
-    """プールから raw DBAPI コネクションを取得します。プール未初期化なら初期化します。
-    generic_repo との互換性のため、cursor() メソッドを持つ DBAPI 接続を返します。"""
+    """プールから raw DBAPI コネクションを取得する。未初期化なら初期化し、cursor() を備えた接続を返す。"""
     global _engine, _initialized
     if not _initialized:
         init_pool()
@@ -215,8 +209,7 @@ def get_connection(timeout: float | None = None):
             close_pool()
             init_pool()
 
-    # SQLAlchemy の raw connection を取得
-    # これは DBAPI connection のラッパーで cursor() メソッドを持つ
+    # SQLAlchemy の raw connection（cursor() を持つ DBAPI ラッパー）を取得
     try:
         conn = _engine.raw_connection()
     except DBAPIError:
@@ -232,7 +225,7 @@ def get_connection(timeout: float | None = None):
 
 
 def release_connection(conn):
-    """コネクションをプールに戻す（クローズすることで SQLAlchemy プールに返却）。"""
+    """クローズしてプールへ返却。失敗は警告ログだけにとどめる。"""
     try:
         conn.close()
     except Exception as e:
@@ -240,7 +233,7 @@ def release_connection(conn):
 
 
 def close_pool():
-    """プール内の接続を全てクローズし、初期化状態をリセットする。"""
+    """プールを破棄し、初期化フラグやトークン状態をリセットする。"""
     global _engine, _SessionFactory, _initialized, _uses_client_credentials
     with _pool_lock:
         if not _initialized:
@@ -260,7 +253,7 @@ def close_pool():
 
 
 def _configure_raw_connection(conn, timeout: float | None):
-    """Set autocommit/timeout for DBAPI connection when possible (compatibility shim)."""
+    """DBAPI 接続に対し autocommit/timeout を可能な範囲で設定する互換レイヤー。"""
     try:
         dbapi_conn = getattr(conn, "driver_connection", None) or getattr(conn, "connection", None) or conn
         # Enable autocommit for sqlite to match prior behavior without explicit commit
@@ -279,7 +272,7 @@ def _configure_raw_connection(conn, timeout: float | None):
 
 
 def get_customers(limit: int = 100):
-    """顧客一覧を取得するヘルパー（プールされた接続を利用）。"""
+    """顧客一覧を取得するヘルパー。プール接続を使い cursor でフェッチ。"""
     logger.info("start get_customers limit=%s", limit)
     conn = get_connection()
     try:
@@ -296,7 +289,7 @@ def get_customers(limit: int = 100):
         release_connection(conn)
 
 def get_customer_detail(customer_id: int):
-    """特定の顧客の詳細を取得するヘルパー（プールされた接続を利用）。"""
+    """顧客詳細を 1 件取得するヘルパー。見つからなければ None。"""
     logger.info("start get_customer_detail customer_id=%s", customer_id)
     conn = get_connection()
     try:

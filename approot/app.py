@@ -8,23 +8,23 @@ from .services import entities_loader, generic_service
 from .repositories import generic_repo
 from pathlib import Path
 
-# Basic logging setup so db.py logs show up on console
+# コンソールにも db.py のログが出るよう最低限のロギングをセットアップ
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s %(levelname)s %(name)s %(message)s",
 )
 
-# Load .env before touching DB
+# DB に触る前に .env を読み込んで環境変数を解決
 load_dotenv()
 
 app = Flask(__name__)
 app.logger.setLevel(logging.INFO)
 db.logger = app.logger  # unify db.py logging with Flask's logger
 
-# Close pool only when process exits; keep it warm between requests
+# プロセス終了時だけプールを閉じ、リクエスト間では温存してレイテンシを抑える
 atexit.register(db.close_pool)
 
-# Load entity definitions once at startup
+# 起動時にエンティティ定義を一度だけ読み込む
 _entities_path = Path(__file__).parent / "config" / "entities.yaml"
 _validation_result = entities_loader.load_entities(str(_entities_path))
 _ENTITY_LOAD_ERROR = False
@@ -36,9 +36,9 @@ else:
     _ENTITIES = _validation_result.entities
     app.logger.info("Loaded %d entities: %s", len(_ENTITIES), list(_ENTITIES.keys()))
 
-# Action handlers registry
-# Register custom action handlers here
-# Example: _ACTION_HANDLERS = {"export_csv": my_export_handler, "calc_points": calc_handler}
+# アクションハンドラ登録領域
+# ここにカスタムアクションを登録する
+# 例: _ACTION_HANDLERS = {"export_csv": my_export_handler, "calc_points": calc_handler}
 _ACTION_HANDLERS = {}
 
 

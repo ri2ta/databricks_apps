@@ -1,6 +1,6 @@
 """
-Generic service layer for YAML-defined entities.
-Builds contexts for list/detail/form views and dispatches actions.
+YAML 定義のエンティティに共通するサービス層。
+リスト・詳細・フォーム描画用のコンテキスト生成とアクションディスパッチを担う。
 """
 from __future__ import annotations
 
@@ -31,11 +31,10 @@ def _missing_entity(entity_name: str, mode: str) -> Dict[str, Any]:
 
 def _error_context(entity: Dict[str, Any] | None, mode: str, exc: Exception, status: int = 500) -> Dict[str, Any]:
     """
-    Build error context from exception.
-    - Pool/timeout (DBAPI/SQLAlchemy timeout) => 503 with generic UI message
-    - Other errors => status (default 500) with generic UI message
-
-    Note: The caller should already log the exception details; UI message stays concise to avoid leakage.
+    例外から UI 表示用のエラ―コンテキストを組み立てる。
+    - プール枯渇やタイムアウトは 503 で一般的な文言に丸める
+    - それ以外は与えられたステータス（デフォルト 500）で返す
+    詳細ログは呼び出し側で出す前提にし、ここでは情報漏えいを避けて簡潔にする。
     """
 
     # Default responses
@@ -93,7 +92,7 @@ def render_list(
     cfg = entity.get("list", {})
     try:
         rows = generic_repo.fetch_list(entity, page=page, page_size=page_size, sort=sort)
-    except Exception as exc:  # pragma: no cover - validated via failure context
+    except Exception as exc:  # pragma: no cover - 失敗経路でコンテキストを確認する
         logger.exception("render_list failed for entity=%s", entity_name)
         return _error_context(entity, mode="list", exc=exc)
 
@@ -123,7 +122,7 @@ def render_detail(
 
     try:
         record = generic_repo.fetch_detail(entity, pk)
-    except Exception as exc:  # pragma: no cover - defensive logging
+    except Exception as exc:  # pragma: no cover - 失敗時もログを残す
         logger.exception("render_detail failed for entity=%s", entity_name)
         return _error_context(entity, mode="view", exc=exc)
 
@@ -162,7 +161,7 @@ def render_form(
     if pk is not None:
         try:
             record = generic_repo.fetch_detail(entity, pk)
-        except Exception as exc:  # pragma: no cover - defensive logging
+        except Exception as exc:  # pragma: no cover - 失敗時もログを残す
             logger.exception("render_form failed for entity=%s", entity_name)
             return _error_context(entity, mode=mode, exc=exc)
 
@@ -239,7 +238,7 @@ def handle_action(
 
 def _validate_field(field: Dict[str, Any], value: Any) -> str | None:
     """
-    Validate a single field value. Returns error message if invalid, None if valid.
+    単一フィールドをバリデートし、不正ならエラーメッセージを返す。問題なければ None。
     """
     field_name = field.get("name", "")
     field_type = field.get("type", "text")
@@ -253,9 +252,9 @@ def _validate_field(field: Dict[str, Any], value: Any) -> str | None:
     if value is None or value == "":
         return None
     
-    # Type-specific validation
+    # 型ごとのバリデーション
     if field_type == "email":
-        # Simple email validation
+        # 簡易なメールアドレスチェック
         if "@" not in str(value) or "." not in str(value).split("@")[-1]:
             return f"{field.get('label', field_name)} must be a valid email address"
     
@@ -268,9 +267,9 @@ def handle_save(
     payload: Dict[str, Any],
 ) -> Dict[str, Any]:
     """
-    Handle save operation (insert or update).
-    Validates input, applies primary key for updates, calls repository.save.
-    Returns context with errors for validation failures, or success context.
+    保存処理（新規/更新）を担当する。
+    入力バリデーションを行い、更新時は主キーを適用して repository.save を呼ぶ。
+    バリデーション失敗時はフォーム用コンテキストを返し、成功時は詳細表示用コンテキストを返す。
     """
     entity = _get_entity(entities, entity_name)
     if not entity:
@@ -280,7 +279,7 @@ def handle_save(
     is_update = pk_name in payload and payload.get(pk_name) not in (None, "", "0", 0)
     mode = "edit" if is_update else "create"
     
-    # Validate inputs
+    # 入力検証
     errors = {}
     form_cfg = entity.get("form", {})
     
@@ -295,7 +294,7 @@ def handle_save(
             if error_msg:
                 errors[field_name] = error_msg
     
-    # If there are validation errors, return form context with errors
+    # バリデーションに失敗したらフォームコンテキストを返す
     if errors:
         return {
             "ok": False,
@@ -308,14 +307,14 @@ def handle_save(
             "actions": form_cfg.get("actions", []),
         }
     
-    # Convert string id to int if needed
+    # 文字列の主キーは int に寄せる（失敗しても致命的ではない）
     if is_update and pk_name in payload:
         try:
             payload[pk_name] = int(payload[pk_name])
         except (ValueError, TypeError):
             pass
     
-    # Whitelist payload fields to avoid unknown columns reaching the repository
+    # 許可したフィールドだけを渡し、未知のカラムをリポジトリへ渡さない
     allowed_fields = {pk_name}
     for section in form_cfg.get("sections", []):
         for field in section.get("fields", []):
@@ -325,7 +324,7 @@ def handle_save(
 
     filtered_payload = {k: v for k, v in payload.items() if k in allowed_fields}
 
-    # Try to save
+    # リポジトリへ保存を委譲
     try:
         saved_record = generic_repo.save(entity, filtered_payload)
     except ValueError as exc:
@@ -340,11 +339,11 @@ def handle_save(
             "mode": mode,
         }
     except Exception as exc:
-        # Server error
+        # 想定外のサーバーエラーは共通コンテキストで返却
         logger.exception("handle_save failed for entity=%s", entity_name)
         return _error_context(entity, mode=mode, exc=exc)
     
-    # Success - return detail context
+    # 成功時は詳細表示コンテキストを返す
     return {
         "ok": True,
         "status": 200,

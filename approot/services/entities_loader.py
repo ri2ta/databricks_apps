@@ -1,6 +1,6 @@
 """
-Entity loader and schema validator for YAML-driven CRUD framework.
-Loads config/entities.yaml and validates/normalizes to EntityConfig shape.
+YAML 定義のエンティティ設定を読み込み、簡易バリデーションと正規化を行うユーティリティ。
+config/entities.yaml を読み取り EntityConfig 形式に整える。
 """
 import os
 from typing import Dict, List, Any, Optional
@@ -8,7 +8,7 @@ import yaml
 
 
 class ValidationResult:
-    """Result object for validation operations"""
+    """バリデーションの結果を運ぶシンプルなコンテナ。"""
     def __init__(self, success: bool = True, entities: Optional[Dict] = None, errors: Optional[List[str]] = None):
         self.success = success
         self.entities = entities if entities is not None else {}
@@ -17,13 +17,13 @@ class ValidationResult:
 
 def load_entities(yaml_path: str) -> ValidationResult:
     """
-    Load and validate entities from YAML file.
-    
+    YAML からエンティティ定義を読み込み、必須項目の有無などを検証する。
+
     Args:
-        yaml_path: Path to entities.yaml file
-        
+        yaml_path: entities.yaml へのパス
+
     Returns:
-        ValidationResult with success flag, entities dict, and any errors
+        ValidationResult: 成否フラグとロード済みエンティティ、エラーリストを含む
     """
     errors = []
     
@@ -76,7 +76,7 @@ def load_entities(yaml_path: str) -> ValidationResult:
 
 
 def _validate_entity(name: str, config: Any) -> List[str]:
-    """Validate a single entity configuration"""
+    """エンティティ設定 1 件を検証し、問題があればメッセージを返す。"""
     errors = []
     
     if not isinstance(config, dict):
@@ -115,7 +115,7 @@ def _validate_entity(name: str, config: Any) -> List[str]:
 
 
 def _normalize_entity(name: str, config: Dict) -> Dict:
-    """Normalize entity config to EntityConfig shape"""
+    """エンティティ設定を内部で扱いやすい形に正規化する。"""
     normalized = {
         'name': name,
         'table': config['table'],
@@ -129,13 +129,13 @@ def _normalize_entity(name: str, config: Dict) -> Dict:
 
 def get_entity(entities: Dict[str, Dict], name: str) -> Optional[Dict]:
     """
-    Get a specific entity by name from loaded entities.
-    
+    ロード済みエンティティ辞書から名前で 1 件取得する。
+
     Args:
-        entities: Dictionary of loaded entities
-        name: Entity name to retrieve
-        
+        entities: ロード済みエンティティの辞書
+        name: 取得したいエンティティ名
+
     Returns:
-        Entity config dict or None if not found
+        見つかった設定 dict。存在しない場合は None。
     """
     return entities.get(name)

@@ -1,6 +1,6 @@
 """
-Generic repository for YAML-defined entities.
-Provides list/detail/lookup helpers using SQLAlchemy Core/ORM.
+YAML 定義エンティティ用の共通リポジトリ。
+SQLAlchemy Core でリスト/詳細/検索/保存を行うヘルパー群をまとめる。
 """
 from __future__ import annotations
 
@@ -22,7 +22,7 @@ _table_cache: Dict[str, Table] = {}
 
 
 def _fetch_inserted_pk(cursor, pk_name: str):
-    """Try multiple strategies to obtain the last inserted primary key."""
+    """最後に挿入された主キーを取得するため複数の手段を試す。"""
     new_id = getattr(cursor, "lastrowid", None)
     if new_id:
         return new_id
@@ -44,7 +44,7 @@ def _fetch_inserted_pk(cursor, pk_name: str):
 
 
 def preload_tables(entities: Dict[str, Dict[str, Any]]):
-    """Reflect and cache tables at startup to avoid first-request latency."""
+    """起動時にテーブルをリフレクトしてキャッシュし、初回アクセスの遅延を抑える。"""
     for entity in entities.values():
         table_name = entity.get("table")
         if not table_name:
@@ -58,9 +58,8 @@ def preload_tables(entities: Dict[str, Dict[str, Any]]):
 
 def _get_table(table_name: str, columns: List[str] = None) -> Table:
     """
-    Get or reflect SQLAlchemy Table object for the given table name.
-    If engine is not available (e.g., in tests with mocked connections),
-    creates a minimal Table with provided columns.
+    テーブル名から SQLAlchemy Table を取得または反映する。
+    エンジンが無い（テストなど）場合は渡されたカラムで最小構成の Table を組み立てる。
     """
     cache_key = f"{table_name}:{','.join(sorted(columns)) if columns else ''}"
     
@@ -96,14 +95,14 @@ def _get_table(table_name: str, columns: List[str] = None) -> Table:
 
 
 def _safe_identifier(name: str) -> str:
-    """Validate identifier to avoid injection via table/column names."""
+    """テーブル名やカラム名へのインジェクションを避けるため識別子を検証する。"""
     if not _IDENTIFIER_RE.match(name):
         raise ValueError(f"unsafe identifier: {name}")
     return name
 
 
 def _select_columns(entity: Dict[str, Any]) -> List[str]:
-    """Gather primary key + list columns, preserving order and uniqueness."""
+    """主キーとリスト列を順序を保ちつつ重複なく集める。"""
     cols: List[str] = []
     pk = entity.get("primary_key", "id")
     if pk:
@@ -116,7 +115,7 @@ def _select_columns(entity: Dict[str, Any]) -> List[str]:
 
 
 def _allowed_fields(entity: Dict[str, Any]) -> List[str]:
-    """Return allowed field names for persistence based on entity form sections."""
+    """フォーム定義から保存を許可するフィールド名を抽出する。"""
     allowed = set()
     pk = entity.get("primary_key", "id")
     if pk:
@@ -157,7 +156,7 @@ def _rows_to_dicts(description, rows) -> List[Dict[str, Any]]:
 
 
 def _execute_compiled(cursor, compiled):
-    """Execute compiled SA statement with DBAPI cursor, handling qmark/named styles."""
+    """コンパイル済み SQLAlchemy 文を DBAPI カーソルで実行する。qmark / named の両スタイルに対応。"""
     params = compiled.params or {}
     if hasattr(compiled, "positiontup") and compiled.positiontup:
         # qmark-style: use positional tuple in the order SA expects
@@ -169,7 +168,7 @@ def _execute_compiled(cursor, compiled):
 
 
 def fetch_list(entity: Dict[str, Any], page: int = 1, page_size: int | None = None, sort: str | None = None) -> List[Dict[str, Any]]:
-    """Fetch paginated list for an entity using SQLAlchemy Core with parameter binding."""
+    """エンティティのページネートされた一覧を SQLAlchemy Core で取得する。"""
     page = max(1, page or 1)
     cfg = entity.get("list", {})
     effective_page_size = page_size or cfg.get("page_size", 20)
@@ -193,13 +192,12 @@ def fetch_list(entity: Dict[str, Any], page: int = 1, page_size: int | None = No
     offset = (page - 1) * effective_page_size
     stmt = stmt.limit(effective_page_size).offset(offset)
     
-    # Execute query using connection
+    # 接続を取得してクエリ実行
     conn = db.get_connection()
     try:
         cursor = conn.cursor()
-        # Convert SQLAlchemy statement to string and execute with DBAPI
-        # Databricks SQL Warehouse struggles with post-compiled params (LIMIT/OFFSET) when passed separately.
-        # Render literals directly to avoid unbound parameter errors.
+        # SQLAlchemy 文を文字列化し DBAPI で実行
+        # Databricks SQL Warehouse は LIMIT/OFFSET のバインドに弱いのでリテラル化して渡す
         compiled = stmt.compile(compile_kwargs={"literal_binds": True})
         _execute_compiled(cursor, compiled)
         rows = cursor.fetchall()
@@ -209,7 +207,7 @@ def fetch_list(entity: Dict[str, Any], page: int = 1, page_size: int | None = No
 
 
 def fetch_detail(entity: Dict[str, Any], pk: Any) -> Dict[str, Any] | None:
-    """Fetch a single record by primary key using SQLAlchemy Core."""
+    """主キーで 1 件取得する。見つからなければ None。"""
     columns = _select_columns(entity)
     pk_name = entity.get('primary_key', 'id')
     
@@ -220,7 +218,7 @@ def fetch_detail(entity: Dict[str, Any], pk: Any) -> Dict[str, Any] | None:
     selected_cols = [table.c[_safe_identifier(c)] for c in columns]
     stmt = select(*selected_cols).where(table.c[_safe_identifier(pk_name)] == pk)
     
-    # Execute query
+    # クエリを実行
     conn = db.get_connection()
     try:
         cursor = conn.cursor()
@@ -235,7 +233,7 @@ def fetch_detail(entity: Dict[str, Any], pk: Any) -> Dict[str, Any] | None:
 
 
 def search_lookup(entity: Dict[str, Any], q: str, limit: int = 10) -> List[Dict[str, Any]]:
-    """Lookup helper for modal search using SQLAlchemy Core; uses first list column as display field."""
+    """モーダル検索用のルックアップヘルパー。2 列目を表示列として検索する。"""
     columns = _select_columns(entity)
     if len(columns) < 2:
         display_col = columns[0]
@@ -253,7 +251,7 @@ def search_lookup(entity: Dict[str, Any], q: str, limit: int = 10) -> List[Dict[
         table.c[_safe_identifier(display_col)].like(f"%{q}%")
     ).order_by(table.c[_safe_identifier(display_col)].asc()).limit(limit)
     
-    # Execute query
+    # クエリを実行
     conn = db.get_connection()
     try:
         cursor = conn.cursor()
@@ -267,10 +265,8 @@ def search_lookup(entity: Dict[str, Any], q: str, limit: int = 10) -> List[Dict[
 
 def save(entity: Dict[str, Any], payload: Dict[str, Any]) -> Dict[str, Any]:
     """
-    Save a record (insert or update) using SQLAlchemy Core with parameter binding.
-    If primary key is present and non-empty in payload, performs UPDATE.
-    Otherwise, performs INSERT and returns record with new primary key.
-    Raises ValueError if update target doesn't exist.
+    レコードを INSERT/UPDATE する共通保存関数。
+    payload に主キーがあれば UPDATE、無ければ INSERT。更新対象が無い場合は ValueError を投げる。
     """
     pk_name = entity.get("primary_key", "id")
     allowed_fields = _allowed_fields(entity)
@@ -279,7 +275,7 @@ def save(entity: Dict[str, Any], payload: Dict[str, Any]) -> Dict[str, Any]:
     # Get SQLAlchemy Table object (with column fallback for tests)
     table = _get_table(entity["table"], columns=allowed_fields)
     
-    # Determine if this is insert or update
+    # INSERT / UPDATE 判定
     is_update = pk_name in filtered_payload and filtered_payload.get(pk_name) not in (None, "", 0)
     
     conn = db.get_connection()
@@ -305,7 +301,7 @@ def save(entity: Dict[str, Any], payload: Dict[str, Any]) -> Dict[str, Any]:
             conn.commit()
             return fetch_detail(entity, pk_value)
 
-        # INSERT path
+        # INSERT パス
         fields = {k: v for k, v in filtered_payload.items()
                   if k != pk_name or v not in (None, "", 0)}
 
