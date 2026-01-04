@@ -2,21 +2,21 @@ schema_version: 1
 
 # Run with Gunicorn (Flask WSGI). Uses Databricks-provided port env; falls back to 3000 locally.
 command:
-  - gunicorn
-  - "-b"
-  - "0.0.0.0:${DATABRICKS_APP_PORT:-3000}"
-  - "approot.app:app"
-  - "-w"
-  - "2"
+  - /bin/bash
+  - -lc
+  - |
+      gunicorn -b "0.0.0.0:${DATABRICKS_APP_PORT:-3000}" approot.app:app -w 2
 
 # Extra environment variables (Secrets are injected by Databricks Apps)
 env:
-  - name: SQLALCHEMY_DATABASE_URL
-    value: "{{secrets/app-secrets/sqlalchemy_database_url}}"
+  - name: DATABRICKS_HOST
+    value: "dbc-361d047b-1f15.cloud.databricks.com"
+  - name: DATABRICKS_HTTP_PATH
+    value: "/sql/1.0/warehouses/da20927176112d2e"
   - name: DB_POOL_SIZE
-    value: "5"
+    value: "1"
   - name: DB_MAX_OVERFLOW
-    value: "10"
+    value: "1"
   - name: DB_POOL_TIMEOUT
     value: "30"
   - name: DATABRICKS_OAUTH_SCOPE
