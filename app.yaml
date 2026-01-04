@@ -19,8 +19,6 @@ env:
     value: "1"
   - name: DB_POOL_TIMEOUT
     value: "30"
-  - name: DATABRICKS_OAUTH_SCOPE
-    value: "{{secrets/app-secrets/oauth_scope}}"
 
 # Install Python dependencies from the bundled requirements file
 python:

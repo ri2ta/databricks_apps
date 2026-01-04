@@ -52,16 +52,23 @@ def _load_config():
     return url, pool_size, max_overflow, pool_timeout
 
 
-def _fetch_access_token(host: str, client_id: str, client_secret: str, scope: str = "all-apis") -> tuple[str, int]:
-    """Fetch OAuth access token using client_credentials against workspace OIDC."""
+def _fetch_access_token(host: str, client_id: str, client_secret: str, scope: str | None = None) -> tuple[str, int]:
+    """Fetch OAuth access token using client_credentials against workspace OIDC.
+
+    Scope は Databricks 推奨の "all-apis" をデフォルトとし、指定が空なら付けない。
+    400 発生時のレスポンス本文をログに出して原因を特定しやすくする。
+    """
     token_endpoint = f"https://{host}/oidc/v1/token"
     data = {
         "grant_type": "client_credentials",
         "client_id": client_id,
         "client_secret": client_secret,
-        "scope": scope,
     }
+    if scope:
+        data["scope"] = scope
     resp = requests.post(token_endpoint, data=data, timeout=30)
+    if resp.status_code >= 400:
+        logger.error("token fetch failed status=%s body=%s", resp.status_code, resp.text)
     resp.raise_for_status()
     payload = resp.json()
     token = payload.get("access_token")
@@ -123,7 +130,7 @@ def init_pool(size: int | None = None):
         # If service principal creds are present, fetch an access token via client_credentials
         client_id = connect_args.pop("client_id", None)
         client_secret = connect_args.pop("client_secret", None)
-        scope = os.environ.get("DATABRICKS_OAUTH_SCOPE", "all-apis")
+        scope = os.environ.get("DATABRICKS_OAUTH_SCOPE") or "all-apis"
         _uses_client_credentials = bool(client_id and client_secret)
         if _uses_client_credentials:
             token = _get_cached_access_token(url.host, client_id, client_secret, scope)
