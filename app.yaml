@@ -5,7 +5,7 @@ command:
   - /bin/bash
   - -lc
   - |
-      gunicorn -b "0.0.0.0:${DATABRICKS_APP_PORT:-3000}" approot.app:app -w 2
+  gunicorn -b "0.0.0.0:${DATABRICKS_APP_PORT:-3000}" approot.app:app -w 2
 
 # Extra environment variables (Secrets are injected by Databricks Apps)
 env:
@@ -24,4 +24,4 @@ env:
 
 # Install Python dependencies from the bundled requirements file
 python:
-  pip_requirements_file: approot/requirements.txt
+  pip_requirements_file: requirements.txt
