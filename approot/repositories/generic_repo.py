@@ -200,7 +200,7 @@ def fetch_list(entity: Dict[str, Any], page: int = 1, page_size: int | None = No
         # Convert SQLAlchemy statement to string and execute with DBAPI
         # Databricks SQL Warehouse struggles with post-compiled params (LIMIT/OFFSET) when passed separately.
         # Render literals directly to avoid unbound parameter errors.
-        compiled = stmt.compile(compile_kwargs={"literal_binds": False})
+        compiled = stmt.compile(compile_kwargs={"literal_binds": True})
         _execute_compiled(cursor, compiled)
         rows = cursor.fetchall()
         return _rows_to_dicts(cursor.description, rows)
@@ -224,7 +224,7 @@ def fetch_detail(entity: Dict[str, Any], pk: Any) -> Dict[str, Any] | None:
     conn = db.get_connection()
     try:
         cursor = conn.cursor()
-        compiled = stmt.compile(compile_kwargs={"literal_binds": False})
+        compiled = stmt.compile(compile_kwargs={"literal_binds": True})
         _execute_compiled(cursor, compiled)
         row = cursor.fetchone()
         if not row:

@@ -21,15 +21,6 @@ app = Flask(__name__)
 app.logger.setLevel(logging.INFO)
 db.logger = app.logger  # unify db.py logging with Flask's logger
 
-# Initialize DB connection pool once on startup
-def _init_db_pool():
-    try:
-        db.init_pool()
-    except Exception:
-        app.logger.exception("Failed to initialize DB pool")
-
-_init_db_pool()
-
 # Close pool only when process exits; keep it warm between requests
 atexit.register(db.close_pool)
 
@@ -44,11 +35,6 @@ if not _validation_result.success:
 else:
     _ENTITIES = _validation_result.entities
     app.logger.info("Loaded %d entities: %s", len(_ENTITIES), list(_ENTITIES.keys()))
-    # Preload table metadata to reduce first-request latency
-    try:
-        generic_repo.preload_tables(_ENTITIES)
-    except Exception:
-        app.logger.exception("Table preload failed")
 
 # Action handlers registry
 # Register custom action handlers here

@@ -6,7 +6,7 @@ from dotenv import load_dotenv
 from sqlalchemy import create_engine
 from sqlalchemy.engine import make_url, Connection
 from sqlalchemy.orm import sessionmaker, Session
-from sqlalchemy.pool import NullPool
+from sqlalchemy.pool import QueuePool
 from sqlalchemy.exc import DBAPIError
 import requests
 
@@ -33,12 +33,22 @@ if not hasattr(Connection, "commit"):
 
 def _load_config():
     """Load DB config from environment with a clear error if missing."""
-    url = os.environ.get("SQLALCHEMY_DATABASE_URL")
-    if not url:
-        raise RuntimeError("SQLALCHEMY_DATABASE_URL is required")
-    pool_size = int(os.environ.get("DB_POOL_SIZE", "5"))
-    max_overflow = int(os.environ.get("DB_MAX_OVERFLOW", "10"))
+    host = os.environ.get("DATABRICKS_HOST")
+    http_path = os.environ.get("DATABRICKS_HTTP_PATH")
+    client_id = os.environ.get("DATABRICKS_CLIENT_ID")
+    client_secret = os.environ.get("DATABRICKS_CLIENT_SECRET")
+    if not host:
+        raise RuntimeError("DATABRICKS_HOST is required")
+    if not http_path:
+        raise RuntimeError("DATABRICKS_HTTP_PATH is required")
+    if not client_id:
+        raise RuntimeError("DATABRICKS_CLIENT_ID is required")
+    if not client_secret:
+        raise RuntimeError("DATABRICKS_CLIENT_SECRET is required")
+    pool_size = int(os.environ.get("DB_POOL_SIZE", "1"))
+    max_overflow = int(os.environ.get("DB_MAX_OVERFLOW", "1"))
     pool_timeout = int(os.environ.get("DB_POOL_TIMEOUT", "30"))
+    url: str = f"databricks+connector://token:@{host}:443/default?http_path={http_path}&auth_type=databricks-oauth&client_id={client_id}&client_secret={client_secret}"
     return url, pool_size, max_overflow, pool_timeout
 
 
@@ -98,7 +108,8 @@ def get_session() -> Session:
 
 def init_pool(size: int | None = None):
     """コネクションプールを初期化します。
-    Databricks Apps ではワーカーが短命のため、NullPool で毎リクエスト接続を張り直す。
+    Databricks Apps ではワーカーが短命のため、極小 QueuePool (size=1, overflow=0/1) で
+    最低限の接続を温存しつつ毎リクエストのレイテンシを抑える。
     """
     global _engine, _SessionFactory, _initialized, _uses_client_credentials
     with _pool_lock:
@@ -120,13 +131,21 @@ def init_pool(size: int | None = None):
             # Use token-based auth; no interactive OAuth flow
             connect_args.pop("auth_type", None)
 
-        logger.info("initializing SQLAlchemy engine with NullPool (stateless app)")
-        
-        # SQLAlchemy エンジンを作成（NullPoolで毎回新規接続）
+        logger.info(
+            "initializing SQLAlchemy engine with QueuePool size=%s max_overflow=%s timeout=%s",
+            pool_size,
+            max_overflow,
+            pool_timeout,
+        )
+
+        # SQLAlchemy エンジンを作成（最小限のプールで接続を温存）
         _engine = create_engine(
             db_url,
             connect_args=connect_args,
-            poolclass=NullPool,
+            poolclass=QueuePool,
+            pool_size=pool_size if pool_size > 0 else 1,
+            max_overflow=max_overflow if max_overflow >= 0 else 0,
+            pool_timeout=pool_timeout,
             pool_pre_ping=True,  # 接続の健全性チェック
             echo=False,
         )
