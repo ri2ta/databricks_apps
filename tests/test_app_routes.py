@@ -31,8 +31,7 @@ def mock_db(monkeypatch):
     # Mock the connection pool functions
     monkeypatch.setattr(db, 'init_pool', lambda: None)
     monkeypatch.setattr(db, 'close_pool', lambda: None)
-    monkeypatch.setattr(db, 'get_customers', lambda limit=100: [])
-    monkeypatch.setattr(db, 'get_customer_detail', lambda customer_id: None)
+    
 
 
 @pytest.fixture

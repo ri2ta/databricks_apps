@@ -271,45 +271,4 @@ def _configure_raw_connection(conn, timeout: float | None):
         logger.debug("raw connection configuration skipped", exc_info=True)
 
 
-def get_customers(limit: int = 100):
-    """顧客一覧を取得するヘルパー。プール接続を使い cursor でフェッチ。"""
-    logger.info("start get_customers limit=%s", limit)
-    conn = get_connection()
-    try:
-        with conn.cursor() as cur:
-            cur.execute("SELECT * FROM customers LIMIT ?", (limit,))
-            cols = [c[0] for c in cur.description]
-            rows = [dict(zip(cols, row)) for row in cur.fetchall()]
-            logger.info("get_customers fetched rows=%s", len(rows))
-            return rows
-    except Exception:
-        logger.exception("get_customers failed")
-        raise
-    finally:
-        release_connection(conn)
-
-def get_customer_detail(customer_id: int):
-    """顧客詳細を 1 件取得するヘルパー。見つからなければ None。"""
-    logger.info("start get_customer_detail customer_id=%s", customer_id)
-    conn = get_connection()
-    try:
-        with conn.cursor() as cur:
-            cur.execute("SELECT * FROM customers WHERE customerid = ?", (customer_id,))
-            cols = [c[0] for c in cur.description]
-            row = cur.fetchone()
-            if row:
-                customer = dict(zip(cols, row))
-                logger.info("get_customer_detail found customer_id=%s", customer_id)
-                return customer
-            else:
-                logger.info("get_customer_detail no customer found for customer_id=%s", customer_id)
-                return None
-    except Exception:
-        logger.exception("get_customer_detail failed for customer_id=%s", customer_id)
-        raise
-    finally:
-        release_connection(conn)
-
-if __name__ == "__main__":
-    init_pool(2)
-    print(get_customers(5))
+# Legacy helper functions `get_customers` / `get_customer_detail` removed.

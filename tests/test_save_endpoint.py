@@ -30,8 +30,7 @@ def save_test_mock_db(monkeypatch):
     
     monkeypatch.setattr(db, 'init_pool', lambda: None)
     monkeypatch.setattr(db, 'close_pool', lambda: None)
-    monkeypatch.setattr(db, 'get_customers', lambda limit=100: [])
-    monkeypatch.setattr(db, 'get_customer_detail', lambda customer_id: None)
+    
 
 
 @pytest.fixture

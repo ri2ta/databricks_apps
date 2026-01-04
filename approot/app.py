@@ -46,12 +46,7 @@ _ACTION_HANDLERS = {}
 def index():
     return render_template('layout.html', entity_load_error=_ENTITY_LOAD_ERROR)
 
-@app.route('/detail/<int:customer_id>')
-def detail_view(customer_id):
-    customer = db.get_customer_detail(customer_id=customer_id)
-    if customer is None:
-        return "Customer not found", 404
-    return render_template('partials/detail.html', customer=customer)
+
 
 
 # === Generic Entity Routes (Task 5) ===
